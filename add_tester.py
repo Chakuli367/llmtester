@@ -42,13 +42,14 @@ def add_tester(email: str) -> dict:
         # Click the arrow (→) button next to the "123" email list to open modal
         print("[Playwright] Opening email list modal...")
         try:
-            time.sleep(6)  # let Angular fully render
+            time.sleep(6)
             page.evaluate("""
-                const buttons = Array.from(document.querySelectorAll('button[aria-label="Edit email list 123"]'));
-                if (buttons.length === 0) throw new Error('No buttons found');
-                buttons[buttons.length - 1].click();
+                const buttons = Array.from(document.querySelectorAll('button'));
+                const match = buttons.filter(b => b.getAttribute('aria-label') === 'Edit email list 123');
+                if (match.length === 0) throw new Error('No buttons found');
+                match[match.length - 1].dispatchEvent(new MouseEvent('click', {bubbles: true, cancelable: true}));
             """)
-            print("[Playwright] Clicked via JS")
+            print("[Playwright] Clicked edit button")
             time.sleep(3)
         except Exception as e:
             # Debug — print all button aria-labels on page
