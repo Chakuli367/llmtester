@@ -42,7 +42,8 @@ def add_tester(email: str) -> dict:
         # Click the arrow (→) button next to the "123" email list to open modal
         print("[Playwright] Opening email list modal...")
         try:
-            page.wait_for_selector("button[aria-label='Edit email list 123']", state="attached", timeout=15000)
+            time.sleep(5)  # let Angular fully render
+            page.wait_for_selector("button[aria-label='Edit email list 123']", state="attached", timeout=20000)
             time.sleep(1)
             page.evaluate("""
                 const buttons = document.querySelectorAll('button[aria-label="Edit email list 123"]');
@@ -52,6 +53,11 @@ def add_tester(email: str) -> dict:
             print("[Playwright] Clicked via JS")
             time.sleep(3)
         except Exception as e:
+            # Debug — print all button aria-labels on page
+            labels = page.evaluate("""
+                Array.from(document.querySelectorAll('button')).map(b => b.getAttribute('aria-label'))
+            """)
+            print(f"[Debug] Buttons on page: {labels}")
             raise Exception(f"JS click failed: {str(e)}")
             
         time.sleep(3)
