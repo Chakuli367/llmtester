@@ -50,7 +50,7 @@ def add_tester(email: str) -> dict:
                 last.click();
             """)
             print("[Playwright] Clicked via JS")
-        time.sleep(3)
+            time.sleep(3)
         except Exception as e:
             raise Exception(f"JS click failed: {str(e)}")
             
@@ -93,3 +93,6 @@ def add_tester(email: str) -> dict:
 
         browser.close()
         return {"success": True, "email": email}
+
+
+
