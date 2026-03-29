@@ -42,13 +42,15 @@ def add_tester(email: str) -> dict:
         # Click the arrow (→) button next to the "123" email list to open modal
         print("[Playwright] Opening email list modal...")
         try:
+            page.wait_for_selector("button[aria-label='Edit email list 123']", timeout=15000)
+            time.sleep(2)
             page.evaluate("""
-            const buttons = document.querySelectorAll('button[aria-label="Edit email list 123"]');
-            const last = buttons[buttons.length - 1];
-            last.click();
+                const buttons = document.querySelectorAll('button[aria-label="Edit email list 123"]');
+                const last = buttons[buttons.length - 1];
+                last.click();
             """)
             print("[Playwright] Clicked via JS")
-            time.sleep(3)
+        time.sleep(3)
         except Exception as e:
             raise Exception(f"JS click failed: {str(e)}")
             
