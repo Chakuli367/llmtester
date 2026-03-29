@@ -44,7 +44,7 @@ def add_tester(email: str) -> dict:
         try:
             # Click the visible arrow_right_alt button for the "123" list
             arrow = page.locator("button[aria-label='Edit email list 123']").last
-            arrow.click(timeout=10000)
+            arrow.click(force=True, timeout=10000)
             print("[Playwright] Clicked edit button")
         except PlaywrightTimeout:
             page.screenshot(path="/tmp/step2_error.png")
@@ -85,4 +85,3 @@ def add_tester(email: str) -> dict:
 
         browser.close()
         return {"success": True, "email": email}
-        S
