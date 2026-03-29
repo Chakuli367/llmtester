@@ -43,14 +43,13 @@ def add_tester(email: str) -> dict:
         print("[Playwright] Opening email list modal...")
         try:
             time.sleep(6)
-            page.evaluate("""
-                const buttons = Array.from(document.querySelectorAll('button'));
-                const match = buttons.filter(b => b.getAttribute('aria-label') === 'Edit email list 123');
-                if (match.length === 0) throw new Error('No buttons found');
-                match[match.length - 1].dispatchEvent(new MouseEvent('click', {bubbles: true, cancelable: true}));
-            """)
+            row = page.locator("tr").filter(has_text="123").first
+            row.hover()
+            time.sleep(2)
+            arrow = page.locator("button[aria-label='Edit email list 123']").last
+            arrow.click(force=True, timeout=10000)
             print("[Playwright] Clicked edit button")
-            time.sleep(3)
+        time.sleep(3)
         except Exception as e:
             # Debug — print all button aria-labels on page
             raise Exception(f"JS click failed: {str(e)}")
