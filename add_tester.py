@@ -43,12 +43,16 @@ def add_tester(email: str) -> dict:
         print("[Playwright] Opening email list modal...")
         try:
             # Arrow button is inside the row — click it
-            arrow = page.locator("tr:has-text('123') button, tr:has-text('123') a").last
+            row = page.locator("tr:has-text('123')").first
+            row.hover()  # hover to make the button visible
+            time.sleep(1)
+            arrow = page.locator("button[aria-label='Edit email list 123']")
             arrow.click(timeout=10000)
         except PlaywrightTimeout:
             # Fallback: click any navigation arrow
-            page.locator("button[aria-label*='edit'], button[aria-label*='Edit'], button[aria-label*='details'], button[aria-label*='Details']").first.click(timeout=8000)
-
+            page.screenshot(path="/tmp/step2_error.png")
+            raise Exception("Could not click Edit email list button")
+            
         time.sleep(3)
         page.screenshot(path="/tmp/step2_modal.png")
         print("[Playwright] Modal should be open")
