@@ -1,6 +1,11 @@
 import os
 from flask import Flask, request, jsonify
 from add_tester import add_tester
+import subprocess
+import os
+
+# Ensure chromium is available at runtime
+subprocess.run(["playwright", "install", "chromium"], check=False)
 
 app = Flask(__name__)
 
