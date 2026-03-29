@@ -43,11 +43,11 @@ def add_tester(email: str) -> dict:
         print("[Playwright] Opening email list modal...")
         try:
             # Arrow button is inside the row — click it
-            row = page.locator("tr:has-text('123')").first
-            row.hover()  # hover to make the button visible
-            time.sleep(1)
             arrow = page.locator("button[aria-label='Edit email list 123']")
-            arrow.click(timeout=10000)
+            arrow.wait_for(timeout=10000)
+            # Force click bypasses visibility check
+            arrow.click(force=True)
+            print("[Playwright] Clicked edit button")
         except PlaywrightTimeout:
             # Fallback: click any navigation arrow
             page.screenshot(path="/tmp/step2_error.png")
