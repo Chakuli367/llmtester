@@ -8,17 +8,11 @@ import json
 import time
 from playwright.sync_api import sync_playwright, TimeoutError as PlaywrightTimeout
 
-# Your Play Console package name
-PACKAGE_NAME = os.environ.get("PACKAGE_NAME", "app.connect.mobile")
+# Exact Play Console testers URL
+TESTERS_URL = "https://play.google.com/console/u/0/developers/8552461033442694717/app/4975749607400132591/tracks/internal-testing?tab=testers"
 
-# Session JSON stored as env var (paste full contents of play_console_session.json)
+# Session JSON stored as env var
 SESSION_JSON = os.environ.get("PLAY_CONSOLE_SESSION")
-
-# Internal testing testers URL
-TESTERS_URL = (
-    f"https://play.google.com/console/u/0/developers/"
-    f"app/{PACKAGE_NAME}/tracks/internal-testing/testers"
-)
 
 
 def add_tester(email: str) -> dict:
@@ -30,7 +24,7 @@ def add_tester(email: str) -> dict:
     with sync_playwright() as p:
         browser = p.chromium.launch(
             headless=True,
-            args=["--no-sandbox", "--disable-setuid-sandbox"]
+            args=["--no-sandbox", "--disable-setuid-sandbox", "--disable-dev-shm-usage"]
         )
 
         context = browser.new_context()
@@ -41,50 +35,69 @@ def add_tester(email: str) -> dict:
         page = context.new_page()
 
         print(f"[Playwright] Navigating to testers page...")
-        page.goto(TESTERS_URL, wait_until="networkidle", timeout=30000)
+        page.goto(TESTERS_URL, wait_until="domcontentloaded", timeout=60000)
+        time.sleep(3)  # let the page settle
 
         # Check if still logged in
         if "accounts.google.com" in page.url:
             browser.close()
             raise Exception("Session expired — re-run save_session.py locally")
 
-        print(f"[Playwright] Looking for email input...")
+        print(f"[Playwright] Page loaded: {page.url}")
+        print(f"[Playwright] Page title: {page.title()}")
 
-        # Click the email input field / add testers area
+        # Take screenshot to see what we're working with
+        page.screenshot(path="/tmp/before_action.png")
+        print(f"[Playwright] Screenshot saved")
+
+        # Try to find and click "Add email addresses" or similar button
         try:
-            # Try finding the "Add email addresses" or similar input
-            email_input = page.locator('input[type="email"], input[placeholder*="email" i], textarea[placeholder*="email" i]').first
-            email_input.wait_for(timeout=10000)
-            email_input.click()
-            email_input.fill(email)
-        except PlaywrightTimeout:
-            # Fallback: look for an "Add testers" button first
-            add_btn = page.locator('button:has-text("Add testers"), button:has-text("Add email")')
-            add_btn.first.click()
+            page.locator("button:has-text('Add email addresses')").first.click(timeout=10000)
+            print("[Playwright] Clicked 'Add email addresses'")
             time.sleep(1)
-            email_input = page.locator('input[type="email"]').first
-            email_input.fill(email)
+        except PlaywrightTimeout:
+            try:
+                page.locator("button:has-text('Add testers')").first.click(timeout=5000)
+                print("[Playwright] Clicked 'Add testers'")
+                time.sleep(1)
+            except PlaywrightTimeout:
+                print("[Playwright] No add button found, looking for direct textarea...")
 
-        # Press Enter or click Save
-        page.keyboard.press("Enter")
+        # Now find the textarea/input for emails
+        try:
+            textarea = page.locator("textarea").first
+            textarea.wait_for(timeout=10000)
+            textarea.click()
+            textarea.fill(email)
+            print(f"[Playwright] Filled email: {email}")
+        except PlaywrightTimeout:
+            try:
+                input_field = page.locator('input[type="email"]').first
+                input_field.wait_for(timeout=5000)
+                input_field.fill(email)
+                print(f"[Playwright] Filled email input: {email}")
+            except PlaywrightTimeout:
+                page.screenshot(path="/tmp/error_state.png")
+                raise Exception("Could not find email input field — check screenshot")
+
         time.sleep(1)
 
-        # Look for Save button
+        # Click Save/Add button
         try:
-            save_btn = page.locator('button:has-text("Save"), button:has-text("Apply")').first
+            save_btn = page.locator("button:has-text('Save changes')").first
             save_btn.wait_for(timeout=5000)
             save_btn.click()
-            print(f"[Playwright] Clicked Save")
+            print("[Playwright] Clicked Save changes")
         except PlaywrightTimeout:
-            print(f"[Playwright] No save button found, may have auto-saved")
+            try:
+                page.locator("button:has-text('Add')").last.click(timeout=5000)
+                print("[Playwright] Clicked Add")
+            except PlaywrightTimeout:
+                print("[Playwright] No save button found")
 
-        # Wait for confirmation
         time.sleep(2)
-
-        # Take screenshot for debugging
-        screenshot_path = f"/tmp/screenshot_{email.replace('@','_')}.png"
-        page.screenshot(path=screenshot_path)
-        print(f"[Playwright] Screenshot saved: {screenshot_path}")
+        page.screenshot(path="/tmp/after_action.png")
+        print("[Playwright] Done")
 
         browser.close()
 
