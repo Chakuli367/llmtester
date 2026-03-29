@@ -66,7 +66,7 @@ def add_tester(email: str) -> dict:
             for inp in inputs:
                 print(f"[Input] placeholder={inp.get_attribute('placeholder')} type={inp.get_attribute('type')}")
     
-            email_input = page.locator("input[type='text'], input:not([type])").first
+            email_input = page.locator("input[type='email']").first
             email_input.wait_for(timeout=10000)
             email_input.click()
             email_input.fill(email)
