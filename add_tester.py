@@ -49,7 +49,7 @@ def add_tester(email: str) -> dict:
             arrow = page.locator("button[aria-label='Edit email list 123']").last
             arrow.click(force=True, timeout=10000)
             print("[Playwright] Clicked edit button")
-        time.sleep(3)
+            time.sleep(3)
         except Exception as e:
             # Debug — print all button aria-labels on page
             raise Exception(f"JS click failed: {str(e)}")
