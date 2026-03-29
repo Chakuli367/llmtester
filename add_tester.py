@@ -42,8 +42,8 @@ def add_tester(email: str) -> dict:
         # Click the arrow (→) button next to the "123" email list to open modal
         print("[Playwright] Opening email list modal...")
         try:
-            page.wait_for_selector("button[aria-label='Edit email list 123']", timeout=15000)
-            time.sleep(2)
+            page.wait_for_selector("button[aria-label='Edit email list 123']", state="attached", timeout=15000)
+            time.sleep(1)
             page.evaluate("""
                 const buttons = document.querySelectorAll('button[aria-label="Edit email list 123"]');
                 const last = buttons[buttons.length - 1];
@@ -93,6 +93,3 @@ def add_tester(email: str) -> dict:
 
         browser.close()
         return {"success": True, "email": email}
-
-
-
