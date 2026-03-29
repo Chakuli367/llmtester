@@ -57,13 +57,17 @@ def add_tester(email: str) -> dict:
         # Type in the "Add email addresses" input field
         print(f"[Playwright] Typing email: {email}")
         try:
-            email_input = page.locator("input[placeholder*='user@example.com'], input[placeholder*='email']").first
+            email_input = page.locator("input").filter(has_placeholder=lambda x: x and "example.com" in x).first
             email_input.wait_for(timeout=10000)
             email_input.click()
             email_input.fill(email)
-            page.keyboard.press("Enter")  # press Enter to add email to list
+            page.keyboard.press("Enter")
             print("[Playwright] Email entered and Enter pressed")
         except PlaywrightTimeout:
+            # Debug — print all inputs
+            inputs = page.locator("input").all()
+            for inp in inputs:
+                print(f"[Input] placeholder={inp.get_attribute('placeholder')} type={inp.get_attribute('type')}")
             page.screenshot(path="/tmp/step2_error.png")
             raise Exception("Could not find email input in modal")
 
