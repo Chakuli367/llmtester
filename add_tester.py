@@ -41,14 +41,14 @@ def add_tester(email: str) -> dict:
 
         # Click the arrow (→) button next to the "123" email list to open modal
         print("[Playwright] Opening email list modal...")
-        page.screenshot(path="/tmp/step2_debug.png")
-
-        # Print all buttons on page for debugging
-        buttons = page.locator("button").all()
-        for btn in buttons:
-            print(f"[Button] aria-label={btn.get_attribute('aria-label')} text={btn.inner_text()[:30] if btn.is_visible() else '(hidden)'}")
-
-        raise Exception("DEBUG STOP")
+        try:
+            # Click the visible arrow_right_alt button for the "123" list
+            arrow = page.locator("button[aria-label='Edit email list 123']").filter(has_text="arrow_right_alt")
+            arrow.click(timeout=10000)
+            print("[Playwright] Clicked edit button")
+        except PlaywrightTimeout:
+            page.screenshot(path="/tmp/step2_error.png")
+            raise Exception("Could not click Edit email list button")
             
         time.sleep(3)
         page.screenshot(path="/tmp/step2_modal.png")
