@@ -43,7 +43,7 @@ def add_tester(email: str) -> dict:
         print("[Playwright] Opening email list modal...")
         try:
             # Click the visible arrow_right_alt button for the "123" list
-            arrow = page.locator("button[aria-label='Edit email list 123']").filter(has_text="arrow_right_alt")
+            arrow = page.locator("button[aria-label='Edit email list 123']").last
             arrow.click(timeout=10000)
             print("[Playwright] Clicked edit button")
         except PlaywrightTimeout:
@@ -85,3 +85,4 @@ def add_tester(email: str) -> dict:
 
         browser.close()
         return {"success": True, "email": email}
+        S
