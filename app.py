@@ -4,8 +4,10 @@ from add_tester import add_tester
 import subprocess
 import os
 
-# Ensure chromium is available at runtime
-subprocess.run(["playwright", "install", "chromium"], check=False)
+# Install chromium at runtime if missing
+result = subprocess.run(["playwright", "install", "chromium"], capture_output=True, text=True)
+print(result.stdout)
+print(result.stderr)
 
 app = Flask(__name__)
 
