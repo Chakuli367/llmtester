@@ -44,9 +44,9 @@ def add_tester(email: str) -> dict:
         try:
             time.sleep(6)  # let Angular fully render
             page.evaluate("""
-                const buttons = document.querySelectorAll('button[aria-label="Edit email list 123"]');
-                const last = buttons[buttons.length - 1];
-                last.click();
+                const buttons = Array.from(document.querySelectorAll('button[aria-label="Edit email list 123"]'));
+                if (buttons.length === 0) throw new Error('No buttons found');
+                buttons[buttons.length - 1].click();
             """)
             print("[Playwright] Clicked via JS")
             time.sleep(3)
