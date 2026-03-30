@@ -29,7 +29,7 @@ def add_tester(email: str) -> dict:
         page = context.new_page()
 
         print(f"[Playwright] Navigating to testers page...")
-        page.goto(TESTERS_URL, wait_until="domcontentloaded", timeout=60000)
+        page.goto(TESTERS_URL, wait_until="networkidle", timeout=60000)
         time.sleep(5)
 
         if "accounts.google.com" in page.url:
