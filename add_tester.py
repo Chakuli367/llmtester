@@ -42,13 +42,14 @@ def add_tester(email: str) -> dict:
         # Click the arrow (→) button next to the "123" email list to open modal
         print("[Playwright] Opening email list modal...")
         try:
-            time.sleep(6)
-            row = page.locator("tr").filter(has_text="123").first
-            row.hover()
-            time.sleep(2)
-            arrow = page.locator("button[aria-label='Edit email list 123']").last
-            arrow.click(force=True, timeout=10000)
-            print("[Playwright] Clicked edit button")
+            page.wait_for_selector("button[aria-label='Edit email list 123']", state="attached", timeout=15000)
+            time.sleep(1)
+            page.evaluate("""
+                const buttons = document.querySelectorAll('button[aria-label="Edit email list 123"]');
+                const last = buttons[buttons.length - 1];
+                last.click();
+            """)
+            print("[Playwright] Clicked via JS")
             time.sleep(3)
         except Exception as e:
             # Debug — print all button aria-labels on page
