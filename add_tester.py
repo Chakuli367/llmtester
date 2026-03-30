@@ -58,16 +58,17 @@ def add_tester(email: str) -> dict:
         # Type in the "Add email addresses" input field
         print(f"[Playwright] Typing email: {email}")
         try:
-            time.sleep(2)
+            time.sleep(5)  # wait longer for modal to fully render
             inputs = page.locator("input").all()
             for inp in inputs:
                 print(f"[Input] placeholder={inp.get_attribute('placeholder')} type={inp.get_attribute('type')}")
-    
+
             email_input = page.locator("input[type='email']").first
-            email_input.wait_for(timeout=10000)
-            email_input.triple_click()  # select all existing text first
+            email_input.wait_for(state="visible", timeout=10000)
+            email_input.click()
             email_input.fill(email)
             page.keyboard.press("Enter")
+            time.sleep(2)
             print("[Playwright] Email entered and Enter pressed")
         except PlaywrightTimeout:
             page.screenshot(path="/tmp/step2_error.png")
