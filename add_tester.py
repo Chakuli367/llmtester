@@ -58,80 +58,9 @@ def add_tester(email: str) -> dict:
 
         page.screenshot(path="/tmp/step2_modal.png")
 
-        # Step 3 — Fill list name (use email as list name)
-        print(f"[Playwright] Filling list name: {email}")
-        try:
-            list_name_input = page.locator("input[type='text']").first
-            list_name_input.wait_for(state="visible", timeout=10000)
-            list_name_input.click()
-            list_name_input.fill(email)
-            print("[Playwright] List name filled")
-            time.sleep(1)
-        except PlaywrightTimeout:
-            page.screenshot(path="/tmp/step3_error.png")
-            raise Exception("Could not find list name input")
-
-        # Step 4 — Fill email address
-        print(f"[Playwright] Filling email address: {email}")
-        try:
-            email_input = page.locator("input[type='email']").first
-            email_input.wait_for(state="visible", timeout=10000)
-            email_input.click()
-            email_input.fill(email)
-            page.keyboard.press("Enter")
-            print("[Playwright] Email entered and Enter pressed")
-            time.sleep(2)
-        except PlaywrightTimeout:
-            page.screenshot(path="/tmp/step4_error.png")
-            raise Exception("Could not find email input")
-
-        page.screenshot(path="/tmp/step4_filled.png")
-
-        # Step 5 — Click "Save changes" on modal
-        print("[Playwright] Clicking Save changes on modal...")
-        try:
-            save_modal_btn = page.get_by_role("button", name="Save changes").first
-            save_modal_btn.wait_for(state="visible", timeout=10000)
-            save_modal_btn.click()
-            print("[Playwright] Modal saved")
-            time.sleep(4)
-        except PlaywrightTimeout:
-            page.screenshot(path="/tmp/step5_error.png")
-            raise Exception("Could not find Save changes button on modal")
-
-        page.screenshot(path="/tmp/step5_after_save.png")
-
-        # Step 6 — Check the checkbox next to the new list
-        print(f"[Playwright] Checking checkbox for list: {email}")
-        try:
-            checkbox = page.locator(f"tr:has-text('{email}') input[type='checkbox']").first
-            checkbox.wait_for(state="visible", timeout=15000)
-            if not checkbox.is_checked():
-                checkbox.click()
-                print("[Playwright] Checkbox checked")
-            else:
-                print("[Playwright] Checkbox already checked")
-            time.sleep(2)
-        except PlaywrightTimeout:
-            page.screenshot(path="/tmp/step6_error.png")
-            raise Exception("Could not find checkbox for new list")
-
-        page.screenshot(path="/tmp/step6_checked.png")
-
-        # Step 7 — Click "Save" on main page
-        print("[Playwright] Clicking Save on main page...")
-        try:
-            save_main_btn = page.get_by_role("button", name="Save").last
-            save_main_btn.wait_for(state="visible", timeout=10000)
-            save_main_btn.click()
-            print("[Playwright] Main page saved!")
-            time.sleep(3)
-        except PlaywrightTimeout:
-            page.screenshot(path="/tmp/step7_error.png")
-            raise Exception("Could not find Save button on main page")
-
-        page.screenshot(path="/tmp/step7_done.png")
-        print("[Playwright] All done!")
-
-        browser.close()
-        return {"success": True, "email": email}
+        # DEBUG — print all inputs after modal opens
+        time.sleep(3)
+        inputs = page.locator("input").all()
+        for inp in inputs:
+            print(f"[Input] type={inp.get_attribute('type')} placeholder={inp.get_attribute('placeholder')} id={inp.get_attribute('id')}")
+        raise Exception("DEBUG STOP")
