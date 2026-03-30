@@ -1,5 +1,6 @@
 """
-Playwright script to add a tester email to Play Console internal testing.
+Playwright script to add a tester email to Play Console closed testing.
+Creates a new email list for each tester, checks it, and saves.
 Called by Flask endpoint — do not run directly.
 """
 
@@ -8,7 +9,7 @@ import json
 import time
 from playwright.sync_api import sync_playwright, TimeoutError as PlaywrightTimeout
 
-TESTERS_URL = "https://play.google.com/console/u/0/developers/8552461033442694717/app/4975749607400132591/tracks/internal-testing?tab=testers"
+TESTERS_URL = "https://play.google.com/console/u/0/developers/8552461033442694717/app/4975749607400132591/tracks/4699824931279130112?tab=testers"
 SESSION_JSON = os.environ.get("PLAY_CONSOLE_SESSION")
 
 
@@ -24,13 +25,17 @@ def add_tester(email: str) -> dict:
             args=["--no-sandbox", "--disable-setuid-sandbox", "--disable-dev-shm-usage"]
         )
 
-        context = browser.new_context(viewport={"width": 1280, "height": 800})
+        context = browser.new_context(
+            viewport={"width": 1280, "height": 900},
+            user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36"
+        )
         context.add_cookies(session["cookies"])
         page = context.new_page()
 
-        print(f"[Playwright] Navigating to testers page...")
+        # Step 1 — Navigate
+        print("[Playwright] Navigating to testers page...")
         page.goto(TESTERS_URL, wait_until="networkidle", timeout=60000)
-        time.sleep(5)
+        time.sleep(4)
 
         if "accounts.google.com" in page.url:
             browser.close()
@@ -39,55 +44,93 @@ def add_tester(email: str) -> dict:
         print(f"[Playwright] Page loaded: {page.title()}")
         page.screenshot(path="/tmp/step1.png")
 
-        # Click the arrow (→) button next to the "123" email list to open modal
-        print("[Playwright] Opening email list modal...")
+        # Step 2 — Click "Create email list"
+        print("[Playwright] Clicking Create email list...")
         try:
-            time.sleep(8)
-            arrow = page.locator("button[aria-label='Edit email list 123']").last
-            arrow.click(force=True, timeout=10000)
-            print("[Playwright] Clicked edit button")
+            create_btn = page.get_by_role("button", name="Create email list").first
+            create_btn.wait_for(state="visible", timeout=15000)
+            create_btn.click()
+            print("[Playwright] Clicked Create email list")
             time.sleep(3)
-        except Exception as e:
-            # Debug — print all button aria-labels on page
-            raise Exception(f"JS click failed: {str(e)}")
-            
-        time.sleep(3)
+        except PlaywrightTimeout:
+            page.screenshot(path="/tmp/step2_error.png")
+            raise Exception("Could not find Create email list button")
+
         page.screenshot(path="/tmp/step2_modal.png")
-        print("[Playwright] Modal should be open")
 
-        # Type in the "Add email addresses" input field
-        print(f"[Playwright] Typing email: {email}")
+        # Step 3 — Fill list name (use email as list name)
+        print(f"[Playwright] Filling list name: {email}")
         try:
-            time.sleep(5)  # wait longer for modal to fully render
-            inputs = page.locator("input").all()
-            for inp in inputs:
-                print(f"[Input] placeholder={inp.get_attribute('placeholder')} type={inp.get_attribute('type')}")
+            list_name_input = page.locator("input[type='text']").first
+            list_name_input.wait_for(state="visible", timeout=10000)
+            list_name_input.click()
+            list_name_input.fill(email)
+            print("[Playwright] List name filled")
+            time.sleep(1)
+        except PlaywrightTimeout:
+            page.screenshot(path="/tmp/step3_error.png")
+            raise Exception("Could not find list name input")
 
+        # Step 4 — Fill email address
+        print(f"[Playwright] Filling email address: {email}")
+        try:
             email_input = page.locator("input[type='email']").first
             email_input.wait_for(state="visible", timeout=10000)
             email_input.click()
             email_input.fill(email)
             page.keyboard.press("Enter")
-            time.sleep(2)
             print("[Playwright] Email entered and Enter pressed")
+            time.sleep(2)
         except PlaywrightTimeout:
-            page.screenshot(path="/tmp/step2_error.png")
-            raise Exception("Could not find email input in modal")
+            page.screenshot(path="/tmp/step4_error.png")
+            raise Exception("Could not find email input")
 
-        time.sleep(2)
-        page.screenshot(path="/tmp/step3_filled.png")
+        page.screenshot(path="/tmp/step4_filled.png")
 
-        # Click "Save changes"
-        print("[Playwright] Clicking Save changes...")
+        # Step 5 — Click "Save changes" on modal
+        print("[Playwright] Clicking Save changes on modal...")
         try:
-            page.locator("button:has-text('Save changes')").first.click(timeout=8000)
-            print("[Playwright] Saved!")
+            save_modal_btn = page.get_by_role("button", name="Save changes").first
+            save_modal_btn.wait_for(state="visible", timeout=10000)
+            save_modal_btn.click()
+            print("[Playwright] Modal saved")
+            time.sleep(4)
         except PlaywrightTimeout:
-            page.screenshot(path="/tmp/step3_error.png")
-            raise Exception("Could not find Save changes button")
+            page.screenshot(path="/tmp/step5_error.png")
+            raise Exception("Could not find Save changes button on modal")
 
-        time.sleep(2)
-        page.screenshot(path="/tmp/step4_done.png")
+        page.screenshot(path="/tmp/step5_after_save.png")
+
+        # Step 6 — Check the checkbox next to the new list
+        print(f"[Playwright] Checking checkbox for list: {email}")
+        try:
+            checkbox = page.locator(f"tr:has-text('{email}') input[type='checkbox']").first
+            checkbox.wait_for(state="visible", timeout=15000)
+            if not checkbox.is_checked():
+                checkbox.click()
+                print("[Playwright] Checkbox checked")
+            else:
+                print("[Playwright] Checkbox already checked")
+            time.sleep(2)
+        except PlaywrightTimeout:
+            page.screenshot(path="/tmp/step6_error.png")
+            raise Exception("Could not find checkbox for new list")
+
+        page.screenshot(path="/tmp/step6_checked.png")
+
+        # Step 7 — Click "Save" on main page
+        print("[Playwright] Clicking Save on main page...")
+        try:
+            save_main_btn = page.get_by_role("button", name="Save").last
+            save_main_btn.wait_for(state="visible", timeout=10000)
+            save_main_btn.click()
+            print("[Playwright] Main page saved!")
+            time.sleep(3)
+        except PlaywrightTimeout:
+            page.screenshot(path="/tmp/step7_error.png")
+            raise Exception("Could not find Save button on main page")
+
+        page.screenshot(path="/tmp/step7_done.png")
         print("[Playwright] All done!")
 
         browser.close()
