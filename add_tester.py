@@ -65,7 +65,7 @@ def add_tester(email: str) -> dict:
     
             email_input = page.locator("input[type='email']").first
             email_input.wait_for(timeout=10000)
-            email_input.click()
+            email_input.triple_click()  # select all existing text first
             email_input.fill(email)
             page.keyboard.press("Enter")
             print("[Playwright] Email entered and Enter pressed")
