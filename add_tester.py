@@ -104,11 +104,42 @@ def add_tester(email: str) -> dict:
         # Step 5 — Click "Save changes" on modal
         print("[Playwright] Clicking Save changes on modal...")
         try:
-            save_modal_btn = page.get_by_role("button", name="Save changes").first
-            save_modal_btn.wait_for(state="visible", timeout=10000)
-            save_modal_btn.click()
-            print("[Playwright] Modal saved")
-            time.sleep(4)
+            time.sleep(2)
+            buttons = page.locator("button").all()
+            for btn in buttons:
+                print(f"[Button] text={repr(btn.inner_text())} visible={btn.is_visible()}")
+
+            # Try multiple ways to find and click Save changes
+            saved = False
+            attempts = [
+                lambda: page.get_by_role("button", name="Save changes").first,
+                lambda: page.get_by_role("button", name="Save changes").last,
+                lambda: page.locator("button:has-text('Save changes')").first,
+                lambda: page.locator("button:has-text('Save changes')").last,
+                lambda: page.locator("button:has-text('Save')").last,
+            ]
+
+            for attempt in attempts:
+                try:
+                    btn = attempt()
+                    if btn.is_visible():
+                        btn.click()
+                        print("[Playwright] Modal saved")
+                        saved = True
+                        break
+                    else:
+                        btn.click(force=True)
+                        print("[Playwright] Modal saved (force)")
+                        saved = True
+                        break
+                except Exception:
+                    continue
+
+            if not saved:
+                page.screenshot(path="/tmp/step5_error.png")
+                raise Exception("Could not find Save changes button on modal")
+
+        time.sleep(4)
         except PlaywrightTimeout:
             page.screenshot(path="/tmp/step5_error.png")
             raise Exception("Could not find Save changes button on modal")
