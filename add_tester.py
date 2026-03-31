@@ -62,23 +62,24 @@ def add_tester(email: str) -> dict:
         print(f"[Playwright] Filling list name: {email}")
         try:
             time.sleep(3)
-            inputs = page.locator("input").all()
-            for inp in inputs:
-                print(f"[Input] type={inp.get_attribute('type')} placeholder={repr(inp.get_attribute('placeholder'))} visible={inp.is_visible()}")
-    
-            all_inputs = page.locator("input[type='text']").all()
-            list_name_input = None
-            for inp in all_inputs:
-                if inp.is_visible():
-                    list_name_input = inp
-                    break
-    
-            if list_name_input is None:
-                raise Exception("No visible text input found")
-    
-            list_name_input.click()
-            list_name_input.fill(email)
-            print("[Playwright] List name filled")
+            # Try nth(0) first (hidden list name field), force interact
+            filled = False
+            for i in range(5):
+                try:
+                    inp = page.locator("input[type='text']").nth(i)
+                    inp.click(force=True)
+                    inp.fill(email, force=True)
+                    actual = inp.input_value()
+                    if actual == email:
+                        print(f"[Playwright] List name filled via input index {i}")
+                        filled = True
+                        break
+                except Exception:
+                    continue
+
+            if not filled:
+                raise Exception("None of the text inputs accepted the email value")
+
             time.sleep(1)
         except PlaywrightTimeout:
             page.screenshot(path="/tmp/step3_error.png")
