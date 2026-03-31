@@ -61,9 +61,21 @@ def add_tester(email: str) -> dict:
         # Step 3 — Fill list name (use email as list name)
         print(f"[Playwright] Filling list name: {email}")
         try:
-            time.sleep(1)
-            list_name_input = page.locator("input[type='text'][placeholder='']").first
-            list_name_input.wait_for(state="visible", timeout=10000)
+            time.sleep(3)
+            inputs = page.locator("input").all()
+            for inp in inputs:
+                print(f"[Input] type={inp.get_attribute('type')} placeholder={repr(inp.get_attribute('placeholder'))} visible={inp.is_visible()}")
+    
+            all_inputs = page.locator("input[type='text']").all()
+            list_name_input = None
+            for inp in all_inputs:
+                if inp.is_visible():
+                list_name_input = inp
+                break
+    
+            if list_name_input is None:
+                raise Exception("No visible text input found")
+    
             list_name_input.click()
             list_name_input.fill(email)
             print("[Playwright] List name filled")
