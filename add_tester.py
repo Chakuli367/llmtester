@@ -139,7 +139,7 @@ def add_tester(email: str) -> dict:
                 page.screenshot(path="/tmp/step5_error.png")
                 raise Exception("Could not find Save changes button on modal")
 
-        time.sleep(4)
+            time.sleep(4)
         except PlaywrightTimeout:
             page.screenshot(path="/tmp/step5_error.png")
             raise Exception("Could not find Save changes button on modal")
