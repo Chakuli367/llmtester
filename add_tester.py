@@ -70,8 +70,8 @@ def add_tester(email: str) -> dict:
             list_name_input = None
             for inp in all_inputs:
                 if inp.is_visible():
-                list_name_input = inp
-                break
+                    list_name_input = inp
+                    break
     
             if list_name_input is None:
                 raise Exception("No visible text input found")
