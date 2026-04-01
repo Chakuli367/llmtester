@@ -3,7 +3,6 @@ Steel + Playwright script to add a tester email to Play Console closed testing.
 """
 import os
 import json
-import time
 from steel import Steel
 from playwright.sync_api import sync_playwright
 
@@ -44,7 +43,10 @@ def add_tester(email: str) -> dict:
             browser = p.chromium.connect_over_cdp(
                 f"wss://connect.steel.dev?apiKey={STEEL_API_KEY}&sessionId={session.id}"
             )
-            page = browser.contexts()[0].pages()[0]
+
+            # Fix: pages is a property, not a method
+            context = browser.contexts()[0]
+            page = context.pages[0]
 
             print("[Steel] Navigating to testers page...")
             page.goto(TESTERS_URL, wait_until="networkidle")
