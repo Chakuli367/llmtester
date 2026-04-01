@@ -1,4 +1,4 @@
 flask
 gunicorn
 playwright==1.44.0
-steel
+steel-sdk
