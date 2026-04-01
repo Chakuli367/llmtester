@@ -7,7 +7,7 @@ Called by Flask endpoint — do not run directly.
 import os
 import json
 import time
-import steel
+from steel import Steel
 from playwright.sync_api import sync_playwright, TimeoutError as PlaywrightTimeout
 
 TESTERS_URL = "https://play.google.com/console/u/0/developers/8552461033442694717/app/4975749607400132591/tracks/4699824931279130112?tab=testers"
