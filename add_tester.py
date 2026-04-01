@@ -40,13 +40,23 @@ def add_tester(email: str) -> dict:
 
     try:
         with sync_playwright() as p:
+            print("[Steel] Connecting to browser...")
             browser = p.chromium.connect_over_cdp(
                 f"wss://connect.steel.dev?apiKey={STEEL_API_KEY}&sessionId={session.id}"
             )
+            print(f"[Steel] Browser connected")
 
-            # Fix: pages is a property, not a method
-            context = browser.contexts()[0]
-            page = context.pages[0]
+            contexts = browser.contexts
+            print(f"[Steel] contexts type: {type(contexts)}, value: {contexts}")
+
+            context = contexts[0]
+            print(f"[Steel] context: {context}")
+
+            pages = context.pages
+            print(f"[Steel] pages type: {type(pages)}, value: {pages}")
+
+            page = pages[0]
+            print(f"[Steel] page: {page}")
 
             print("[Steel] Navigating to testers page...")
             page.goto(TESTERS_URL, wait_until="networkidle")
