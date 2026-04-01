@@ -18,12 +18,23 @@ def add_tester(email: str) -> dict:
         raise ValueError("STEEL_API_KEY env var not set")
 
     session_data = json.loads(SESSION_JSON)
+
+    # Clean cookies — fix partitionKey to be an object or remove it
+    cleaned_cookies = []
+    for cookie in session_data["cookies"]:
+        if "partitionKey" in cookie:
+            pk = cookie["partitionKey"]
+            if not isinstance(pk, dict):
+                del cookie["partitionKey"]
+        cleaned_cookies.append(cookie)
+
+    print(f"[Steel] Loaded {len(cleaned_cookies)} cookies")
+
     client = Steel(steel_api_key=STEEL_API_KEY)
 
     print("[Steel] Creating session with auth context...")
-    # Pass cookies at creation time via sessionContext
     session = client.sessions.create(session_context={
-        "cookies": session_data["cookies"],
+        "cookies": cleaned_cookies,
         "localStorage": session_data.get("localStorage", {})
     })
     print(f"[Steel] Session created: {session.id}")
