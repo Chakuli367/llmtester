@@ -44,19 +44,10 @@ def add_tester(email: str) -> dict:
             browser = p.chromium.connect_over_cdp(
                 f"wss://connect.steel.dev?apiKey={STEEL_API_KEY}&sessionId={session.id}"
             )
-            print(f"[Steel] Browser connected")
+            print("[Steel] Browser connected")
 
-            contexts = browser.contexts
-            print(f"[Steel] contexts type: {type(contexts)}, value: {contexts}")
-
-            context = contexts[0]
-            print(f"[Steel] context: {context}")
-
-            pages = context.pages
-            print(f"[Steel] pages type: {type(pages)}, value: {pages}")
-
-            page = pages[0]
-            print(f"[Steel] page: {page}")
+            context = browser.contexts[0]
+            page = context.pages[0]
 
             print("[Steel] Navigating to testers page...")
             page.goto(TESTERS_URL, wait_until="networkidle")
@@ -67,27 +58,36 @@ def add_tester(email: str) -> dict:
 
             print("[Steel] Clicking Create email list...")
             page.click("button:has-text('Create email list')")
-            page.wait_for_timeout(2000)
 
+            # Wait for modal to appear
+            print("[Steel] Waiting for modal...")
+            page.wait_for_selector("mat-dialog-container", state="visible", timeout=10000)
+            page.wait_for_timeout(1000)
+
+            # Fill list name — scope to the modal
             print(f"[Steel] Filling list name: {email}")
-            page.fill("input[type='text']", email)
+            page.locator("mat-dialog-container input[type='text']:visible").first.fill(email)
             page.wait_for_timeout(500)
 
+            # Fill email address — scope to the modal
             print(f"[Steel] Filling email: {email}")
-            page.fill("input[type='email']", email)
+            page.locator("mat-dialog-container input[type='email']:visible").first.fill(email)
             page.keyboard.press("Enter")
             page.wait_for_timeout(1500)
 
             print("[Steel] Clicking Save changes...")
-            page.click("button:has-text('Save changes')")
+            page.locator("mat-dialog-container button:has-text('Save changes')").click()
             page.wait_for_timeout(3000)
 
+            # Wait for modal to close
+            page.wait_for_selector("mat-dialog-container", state="hidden", timeout=10000)
+
             print(f"[Steel] Checking checkbox for: {email}")
-            page.click(f"tr:has-text('{email}') input[type='checkbox']")
+            page.locator(f"tr:has-text('{email}') input[type='checkbox']").click()
             page.wait_for_timeout(1500)
 
             print("[Steel] Clicking Save on main page...")
-            page.click("button:has-text('Save')")
+            page.locator("button:has-text('Save')").click()
             page.wait_for_timeout(3000)
 
             print("[Steel] All done!")
