@@ -2,3 +2,4 @@ flask
 gunicorn
 steel-sdk
 requests
+playwright==1.44.0
