@@ -1,31 +1,15 @@
 """
-Steel-only script to add a tester email to Play Console closed testing.
-No Playwright — uses Steel SDK + requests directly.
+Steel + Playwright script to add a tester email to Play Console closed testing.
 """
-
 import os
 import json
 import time
-import requests
+from steel import Steel
+from playwright.sync_api import sync_playwright
 
 TESTERS_URL = "https://play.google.com/console/u/0/developers/8552461033442694717/app/4975749607400132591/tracks/4699824931279130112?tab=testers"
 SESSION_JSON = os.environ.get("PLAY_CONSOLE_SESSION")
 STEEL_API_KEY = os.environ.get("STEEL_API_KEY")
-
-STEEL_BASE = "https://api.steel.dev/v1"
-HEADERS = {"Steel-Api-Key": STEEL_API_KEY}
-
-
-def steel_post(path, body={}):
-    r = requests.post(f"{STEEL_BASE}{path}", headers=HEADERS, json=body)
-    r.raise_for_status()
-    return r.json()
-
-def steel_get(path):
-    r = requests.get(f"{STEEL_BASE}{path}", headers=HEADERS)
-    r.raise_for_status()
-    return r.json()
-
 
 def add_tester(email: str) -> dict:
     if not SESSION_JSON:
@@ -34,78 +18,60 @@ def add_tester(email: str) -> dict:
         raise ValueError("STEEL_API_KEY env var not set")
 
     session_data = json.loads(SESSION_JSON)
+    client = Steel(steel_api_key=STEEL_API_KEY)
 
-    # Create Steel session
-    print("[Steel] Creating session...")
-    sess = steel_post("/sessions")
-    session_id = sess["id"]
-    print(f"[Steel] Session created: {session_id}")
+    print("[Steel] Creating session with auth context...")
+    # Pass cookies at creation time via sessionContext
+    session = client.sessions.create(session_context={
+        "cookies": session_data["cookies"],
+        "localStorage": session_data.get("localStorage", {})
+    })
+    print(f"[Steel] Session created: {session.id}")
 
     try:
-        # Load cookies into Steel session
-        print("[Steel] Loading cookies...")
-        steel_post(f"/sessions/{session_id}/cookies", {"cookies": session_data["cookies"]})
+        with sync_playwright() as p:
+            browser = p.chromium.connect_over_cdp(
+                f"wss://connect.steel.dev?apiKey={STEEL_API_KEY}&sessionId={session.id}"
+            )
+            page = browser.contexts()[0].pages()[0]
 
-        # Navigate to testers page
-        print("[Steel] Navigating to testers page...")
-        steel_post(f"/sessions/{session_id}/navigate", {"url": TESTERS_URL})
-        time.sleep(5)
+            print("[Steel] Navigating to testers page...")
+            page.goto(TESTERS_URL, wait_until="networkidle")
 
-        # Check current URL (session expired check)
-        current = steel_get(f"/sessions/{session_id}")
-        if "accounts.google.com" in current.get("currentUrl", ""):
-            raise Exception("Session expired — re-run save_session.py locally")
+            # Check if session expired
+            if "accounts.google.com" in page.url:
+                raise Exception("Session expired — re-run save_session.py locally")
 
-        # Click "Create email list"
-        print("[Steel] Clicking Create email list...")
-        steel_post(f"/sessions/{session_id}/click", {
-            "selector": "button[aria-label='Create email list'], button:has-text('Create email list')"
-        })
-        time.sleep(3)
+            print("[Steel] Clicking Create email list...")
+            page.click("button:has-text('Create email list')")
+            page.wait_for_timeout(2000)
 
-        # Fill list name
-        print(f"[Steel] Filling list name: {email}")
-        steel_post(f"/sessions/{session_id}/type", {
-            "selector": "input[type='text']",
-            "text": email
-        })
-        time.sleep(1)
+            print(f"[Steel] Filling list name: {email}")
+            page.fill("input[type='text']", email)
+            page.wait_for_timeout(500)
 
-        # Fill email address
-        print(f"[Steel] Filling email: {email}")
-        steel_post(f"/sessions/{session_id}/type", {
-            "selector": "input[type='email']",
-            "text": email
-        })
-        steel_post(f"/sessions/{session_id}/key", {"key": "Enter"})
-        time.sleep(2)
+            print(f"[Steel] Filling email: {email}")
+            page.fill("input[type='email']", email)
+            page.keyboard.press("Enter")
+            page.wait_for_timeout(1500)
 
-        # Click Save changes on modal
-        print("[Steel] Clicking Save changes...")
-        steel_post(f"/sessions/{session_id}/click", {
-            "selector": "button:has-text('Save changes')"
-        })
-        time.sleep(4)
+            print("[Steel] Clicking Save changes...")
+            page.click("button:has-text('Save changes')")
+            page.wait_for_timeout(3000)
 
-        # Check checkbox for the new list
-        print(f"[Steel] Checking checkbox for: {email}")
-        steel_post(f"/sessions/{session_id}/click", {
-            "selector": f"tr:has-text('{email}') input[type='checkbox']"
-        })
-        time.sleep(2)
+            print(f"[Steel] Checking checkbox for: {email}")
+            page.click(f"tr:has-text('{email}') input[type='checkbox']")
+            page.wait_for_timeout(1500)
 
-        # Click Save on main page
-        print("[Steel] Clicking Save on main page...")
-        steel_post(f"/sessions/{session_id}/click", {
-            "selector": "button:has-text('Save')"
-        })
-        time.sleep(3)
+            print("[Steel] Clicking Save on main page...")
+            page.click("button:has-text('Save')")
+            page.wait_for_timeout(3000)
 
-        print("[Steel] All done!")
+            print("[Steel] All done!")
+            browser.close()
 
     finally:
-        steel_post(f"/sessions/{session_id}/release")
+        client.sessions.release(session.id)
         print("[Steel] Session released")
 
     return {"success": True, "email": email}
-    
