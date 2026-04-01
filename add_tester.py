@@ -1,18 +1,30 @@
 """
-Playwright script to add a tester email to Play Console closed testing.
-Creates a new email list for each tester, checks it, and saves.
-Called by Flask endpoint — do not run directly.
+Steel-only script to add a tester email to Play Console closed testing.
+No Playwright — uses Steel SDK + requests directly.
 """
 
 import os
 import json
 import time
-from steel import Steel
-from playwright.sync_api import sync_playwright, TimeoutError as PlaywrightTimeout
+import requests
 
 TESTERS_URL = "https://play.google.com/console/u/0/developers/8552461033442694717/app/4975749607400132591/tracks/4699824931279130112?tab=testers"
 SESSION_JSON = os.environ.get("PLAY_CONSOLE_SESSION")
 STEEL_API_KEY = os.environ.get("STEEL_API_KEY")
+
+STEEL_BASE = "https://api.steel.dev/v1"
+HEADERS = {"Steel-Api-Key": STEEL_API_KEY}
+
+
+def steel_post(path, body={}):
+    r = requests.post(f"{STEEL_BASE}{path}", headers=HEADERS, json=body)
+    r.raise_for_status()
+    return r.json()
+
+def steel_get(path):
+    r = requests.get(f"{STEEL_BASE}{path}", headers=HEADERS)
+    r.raise_for_status()
+    return r.json()
 
 
 def add_tester(email: str) -> dict:
@@ -21,124 +33,79 @@ def add_tester(email: str) -> dict:
     if not STEEL_API_KEY:
         raise ValueError("STEEL_API_KEY env var not set")
 
-    session = json.loads(SESSION_JSON)
-    steel_client = steel.Steel(steel_api_key=STEEL_API_KEY)
-    steel_session = steel_client.sessions.create()
+    session_data = json.loads(SESSION_JSON)
+
+    # Create Steel session
+    print("[Steel] Creating session...")
+    sess = steel_post("/sessions")
+    session_id = sess["id"]
+    print(f"[Steel] Session created: {session_id}")
 
     try:
-        with sync_playwright() as p:
-            browser = p.chromium.connect_over_cdp(
-                f"wss://connect.steel.dev?apiKey={STEEL_API_KEY}&sessionId={steel_session.id}"
-            )
+        # Load cookies into Steel session
+        print("[Steel] Loading cookies...")
+        steel_post(f"/sessions/{session_id}/cookies", {"cookies": session_data["cookies"]})
 
-            context = browser.contexts[0]
-            context.add_cookies(session["cookies"])
-            page = context.new_page()
+        # Navigate to testers page
+        print("[Steel] Navigating to testers page...")
+        steel_post(f"/sessions/{session_id}/navigate", {"url": TESTERS_URL})
+        time.sleep(5)
 
-            # Step 1 — Navigate
-            print("[Playwright] Navigating to testers page...")
-            page.goto(TESTERS_URL, wait_until="networkidle", timeout=60000)
-            time.sleep(4)
+        # Check current URL (session expired check)
+        current = steel_get(f"/sessions/{session_id}")
+        if "accounts.google.com" in current.get("currentUrl", ""):
+            raise Exception("Session expired — re-run save_session.py locally")
 
-            if "accounts.google.com" in page.url:
-                raise Exception("Session expired — re-run save_session.py locally")
+        # Click "Create email list"
+        print("[Steel] Clicking Create email list...")
+        steel_post(f"/sessions/{session_id}/click", {
+            "selector": "button[aria-label='Create email list'], button:has-text('Create email list')"
+        })
+        time.sleep(3)
 
-            print(f"[Playwright] Page loaded: {page.title()}")
+        # Fill list name
+        print(f"[Steel] Filling list name: {email}")
+        steel_post(f"/sessions/{session_id}/type", {
+            "selector": "input[type='text']",
+            "text": email
+        })
+        time.sleep(1)
 
-            # Step 2 — Click "Create email list"
-            print("[Playwright] Clicking Create email list...")
-            try:
-                create_btn = page.get_by_role("button", name="Create email list").first
-                create_btn.wait_for(state="visible", timeout=15000)
-                create_btn.click()
-                print("[Playwright] Clicked Create email list")
-                time.sleep(3)
-            except PlaywrightTimeout:
-                raise Exception("Could not find Create email list button")
+        # Fill email address
+        print(f"[Steel] Filling email: {email}")
+        steel_post(f"/sessions/{session_id}/type", {
+            "selector": "input[type='email']",
+            "text": email
+        })
+        steel_post(f"/sessions/{session_id}/key", {"key": "Enter"})
+        time.sleep(2)
 
-            # Step 3 — Fill list name
-            print(f"[Playwright] Filling list name: {email}")
-            filled = False
-            for i in range(5):
-                try:
-                    inp = page.locator("input[type='text']").nth(i)
-                    inp.click(force=True)
-                    inp.fill(email, force=True)
-                    actual = inp.input_value()
-                    if actual == email:
-                        print(f"[Playwright] List name filled via input index {i}")
-                        filled = True
-                        break
-                except Exception:
-                    continue
+        # Click Save changes on modal
+        print("[Steel] Clicking Save changes...")
+        steel_post(f"/sessions/{session_id}/click", {
+            "selector": "button:has-text('Save changes')"
+        })
+        time.sleep(4)
 
-            if not filled:
-                raise Exception("None of the text inputs accepted the email value")
+        # Check checkbox for the new list
+        print(f"[Steel] Checking checkbox for: {email}")
+        steel_post(f"/sessions/{session_id}/click", {
+            "selector": f"tr:has-text('{email}') input[type='checkbox']"
+        })
+        time.sleep(2)
 
-            time.sleep(1)
+        # Click Save on main page
+        print("[Steel] Clicking Save on main page...")
+        steel_post(f"/sessions/{session_id}/click", {
+            "selector": "button:has-text('Save')"
+        })
+        time.sleep(3)
 
-            # Step 4 — Fill email address
-            print(f"[Playwright] Filling email address: {email}")
-            try:
-                email_input = page.locator("input[type='email']").first
-                email_input.wait_for(state="visible", timeout=10000)
-                email_input.click()
-                email_input.fill(email)
-                page.keyboard.press("Enter")
-                print("[Playwright] Email entered and Enter pressed")
-                time.sleep(2)
-            except PlaywrightTimeout:
-                raise Exception("Could not find email input")
-
-            # Step 5 — Click "Save changes" on modal
-            print("[Playwright] Clicking Save changes on modal...")
-            saved = False
-            buttons = page.locator("button").all()
-            for btn in buttons:
-                try:
-                    if btn.inner_text().strip() == "Save changes" and btn.is_visible():
-                        btn.click()
-                        print("[Playwright] Modal saved")
-                        saved = True
-                        break
-                except Exception:
-                    continue
-
-            if not saved:
-                raise Exception("Could not find Save changes button on modal")
-
-            time.sleep(4)
-
-            # Step 6 — Check the checkbox
-            print(f"[Playwright] Checking checkbox for list: {email}")
-            try:
-                checkbox = page.locator(f"tr:has-text('{email}') input[type='checkbox']").first
-                checkbox.wait_for(state="visible", timeout=15000)
-                if not checkbox.is_checked():
-                    checkbox.click()
-                    print("[Playwright] Checkbox checked")
-                else:
-                    print("[Playwright] Checkbox already checked")
-                time.sleep(2)
-            except PlaywrightTimeout:
-                raise Exception("Could not find checkbox for new list")
-
-            # Step 7 — Click "Save" on main page
-            print("[Playwright] Clicking Save on main page...")
-            try:
-                save_main_btn = page.get_by_role("button", name="Save").last
-                save_main_btn.wait_for(state="visible", timeout=10000)
-                save_main_btn.click()
-                print("[Playwright] Main page saved!")
-                time.sleep(3)
-            except PlaywrightTimeout:
-                raise Exception("Could not find Save button on main page")
-
-            print("[Playwright] All done!")
-            browser.close()
+        print("[Steel] All done!")
 
     finally:
-        steel_client.sessions.release(steel_session.id)
+        steel_post(f"/sessions/{session_id}/release")
         print("[Steel] Session released")
 
     return {"success": True, "email": email}
+    
