@@ -85,18 +85,14 @@ def add_tester(email: str) -> dict:
             page.keyboard.press("Enter")
             page.wait_for_timeout(1000)
 
-            # Log button state
-            btn_disabled = page.evaluate("""
-                () => {
-                    const btn = document.querySelector("button[debug-id='create-button']");
-                    return btn ? btn.disabled : 'not found';
-                }
-            """)
-            print(f"[Steel] create-button disabled: {btn_disabled}")
+            # Log button state using locator instead of evaluate (avoids Trusted Types)
+            create_btn = page.locator("button[debug-id='create-button']")
+            is_disabled = create_btn.get_attribute("disabled")
+            print(f"[Steel] create-button disabled: {is_disabled}")
 
             # Click Save changes
             print("[Steel] Clicking 'Save changes'...")
-            page.locator("button[debug-id='create-button']").click(force=True)
+            create_btn.click(force=True)
             page.wait_for_timeout(2000)
 
             # Handle confirmation dialog "Create email list?"
@@ -105,11 +101,15 @@ def add_tester(email: str) -> dict:
             print("[Steel] Clicking 'Create' in confirmation dialog...")
             page.locator("button:has-text('Create')").last.click()
 
-            # Wait for BOTH modals to fully close — poll until no dialog with create-button
+            # Wait for modal to close — poll using native locator (avoids Trusted Types CSP issue)
             print("[Steel] Waiting for modals to close...")
-            page.wait_for_function("""
-                () => !document.querySelector("button[debug-id='create-button']")
-            """, timeout=15000)
+            for _ in range(30):  # 15 seconds max
+                count = page.locator("button[debug-id='create-button']").count()
+                if count == 0:
+                    break
+                page.wait_for_timeout(500)
+            else:
+                raise Exception("Modal did not close in time")
             page.wait_for_timeout(2000)
 
             # Log checkbox rows
@@ -123,7 +123,7 @@ def add_tester(email: str) -> dict:
                 print("[Steel] Trying by email...")
                 checkbox = page.locator(f"tr:has-text('{email}') input[type='checkbox']")
             checkbox.wait_for(state="visible", timeout=15000)
-            checkbox.evaluate("el => el.click()")
+            checkbox.click()
             page.wait_for_timeout(1000)
 
             # Save main page
