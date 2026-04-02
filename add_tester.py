@@ -59,12 +59,12 @@ def add_tester(email: str) -> dict:
             btn.click(force=True)
             page.wait_for_timeout(3000)
 
-            # Wait for modal — scoped to the dialog that has a close button
+            # Wait for modal
             print("[Steel] Waiting for modal...")
-            page.wait_for_selector("[role='dialog'] button.close, [role='dialog'] [debug-id='cancel-button'], [role='dialog'] input", state="visible", timeout=15000)
+            page.wait_for_selector("[role='dialog'] input", state="visible", timeout=15000)
             page.wait_for_timeout(1000)
 
-            # Fill list name using Playwright native fill (triggers Angular properly)
+            # Fill list name
             list_name = "Beta Testers"
             print(f"[Steel] Filling list name: '{list_name}'")
             name_input = page.locator("[role='dialog'] input").first
@@ -74,7 +74,6 @@ def add_tester(email: str) -> dict:
 
             # Fill email
             print(f"[Steel] Filling email: {email}")
-            # Try email type first, fall back to second input
             email_inputs = page.locator("[role='dialog'] input[type='email']")
             if email_inputs.count() > 0:
                 email_input = email_inputs.first
@@ -86,7 +85,7 @@ def add_tester(email: str) -> dict:
             page.keyboard.press("Enter")
             page.wait_for_timeout(1000)
 
-            # Log button state for debugging
+            # Log button state
             btn_disabled = page.evaluate("""
                 () => {
                     const btn = document.querySelector("button[debug-id='create-button']");
@@ -95,15 +94,31 @@ def add_tester(email: str) -> dict:
             """)
             print(f"[Steel] create-button disabled: {btn_disabled}")
 
-            # Click Save changes with force regardless
+            # Click Save changes
             print("[Steel] Clicking 'Save changes'...")
             page.locator("button[debug-id='create-button']").click(force=True)
-            page.wait_for_timeout(3000)
+            page.wait_for_timeout(2000)
 
-            # Check checkbox for the new list
-            print("[Steel] Checking checkbox for 'Beta Testers'...")
+            # Handle confirmation dialog "Create email list?"
+            print("[Steel] Waiting for confirmation dialog...")
+            page.wait_for_selector("text='Create email list?'", state="visible", timeout=10000)
+            print("[Steel] Clicking 'Create' in confirmation dialog...")
+            page.locator("button:has-text('Create')").last.click()
+            page.wait_for_timeout(3000)  # Wait for both modals to close
+
+            # Log all visible checkbox row texts for debugging
+            rows = page.locator("tr input[type='checkbox']").all()
+            print(f"[Steel] Found {len(rows)} checkbox rows after modal closed")
+            row_texts = page.locator("tr:has(input[type='checkbox'])").all_text_contents()
+            print(f"[Steel] Row texts: {row_texts}")
+
+            # Find checkbox — try by list name first, then by email
+            print("[Steel] Looking for checkbox...")
             checkbox = page.locator("tr:has-text('Beta Testers') input[type='checkbox']")
-            checkbox.wait_for(state="visible", timeout=10000)
+            if checkbox.count() == 0:
+                print("[Steel] 'Beta Testers' row not found, trying by email...")
+                checkbox = page.locator(f"tr:has-text('{email}') input[type='checkbox']")
+            checkbox.wait_for(state="visible", timeout=15000)
             checkbox.evaluate("el => el.click()")
             page.wait_for_timeout(1000)
 
