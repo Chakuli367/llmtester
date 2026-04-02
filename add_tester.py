@@ -14,20 +14,17 @@ def add_tester(email: str) -> dict:
     if not STEEL_API_KEY:
         raise ValueError("STEEL_API_KEY env var not set")
 
-    # Basic email validation
     if "@" not in email or "." not in email.split("@")[-1]:
         raise ValueError(f"Invalid email address: {email}")
 
     session_data = json.loads(SESSION_JSON)
 
-    # Clean cookies — always remove partitionKey entirely (safest approach)
     cleaned_cookies = [
         {k: v for k, v in cookie.items() if k != "partitionKey"}
         for cookie in session_data["cookies"]
     ]
     print(f"[Steel] Loaded {len(cleaned_cookies)} cookies")
 
-    # localStorage must be a dict, not a string
     local_storage = session_data.get("localStorage", {})
     if isinstance(local_storage, str):
         try:
@@ -54,98 +51,93 @@ def add_tester(email: str) -> dict:
             context = browser.contexts[0]
             page = context.pages[0]
 
-            # ── Navigate ──────────────────────────────────────────────────
             print("[Steel] Navigating to testers page...")
             page.goto(TESTERS_URL, wait_until="networkidle")
-            page.wait_for_timeout(2000)
+            page.wait_for_timeout(3000)
 
-            # ── Session / redirect checks ─────────────────────────────────
             current_url = page.url
             print(f"[Steel] Current URL: {current_url}")
 
             if "accounts.google.com" in current_url or "signin" in current_url.lower():
-                raise Exception(
-                    f"Session expired — re-run save_session.py locally. "
-                    f"Redirected to: {current_url}"
-                )
+                raise Exception(f"Session expired — redirected to: {current_url}")
             if "play.google.com/console" not in current_url:
                 raise Exception(f"Unexpected redirect to: {current_url}")
 
-            # ── Wait for 'Create email list' button ───────────────────────
+            # Click Create email list
             print("[Steel] Waiting for 'Create email list' button...")
-            page.wait_for_selector(
-                "button:has-text('Create email list')",
-                state="visible",
-                timeout=15000
-            )
+            page.wait_for_selector("button:has-text('Create email list')", state="visible", timeout=15000)
+            page.locator("button:has-text('Create email list')").first.click()
 
-            # ── Click 'Create email list' ─────────────────────────────────
-            print("[Steel] Clicking 'Create email list'...")
-            btn = page.locator("button:has-text('Create email list')").first
-            btn.scroll_into_view_if_needed()
-            btn.click(force=True)
-
-            # ── Wait for modal (via Save changes button) ──────────────────
+            # Wait for modal Save changes button to appear
             print("[Steel] Waiting for modal...")
-            page.wait_for_selector(
-                "button:has-text('Save changes')",
-                state="visible",
-                timeout=15000
-            )
-            page.wait_for_timeout(1000)
+            page.wait_for_selector("button:has-text('Save changes')", state="visible", timeout=15000)
+            page.wait_for_timeout(1500)
 
-            # ── Fill list name ────────────────────────────────────────────
+            # Debug — print all visible inputs in modal
+            inputs = page.locator("input:visible").all()
+            print(f"[Steel] Visible inputs in modal: {len(inputs)}")
+            for i, inp in enumerate(inputs):
+                try:
+                    t = inp.get_attribute("type")
+                    p2 = inp.get_attribute("placeholder")
+                    print(f"  Input {i}: type={t} placeholder={p2}")
+                except:
+                    pass
+
+            # Fill list name — type slowly to trigger Angular change detection
             list_name = "Beta Testers"
             print(f"[Steel] Filling list name: '{list_name}'")
-            name_input = page.locator("input[type='text']:visible").first
-            name_input.wait_for(state="visible", timeout=5000)
-            name_input.fill(list_name)
-            page.wait_for_timeout(300)
+            name_input = page.locator("input:visible").first
+            name_input.click()
+            name_input.fill("")
+            page.keyboard.type(list_name, delay=50)
+            page.wait_for_timeout(500)
 
-            # ── Fill email address ────────────────────────────────────────
+            # Fill email
             print(f"[Steel] Filling email: {email}")
-            email_input = page.locator("input[type='email']:visible").first
-            email_input.wait_for(state="visible", timeout=5000)
-            email_input.fill(email)
+            # Try to find email input — if not found fall back to second visible input
+            email_inputs = page.locator("input[type='email']:visible").all()
+            if email_inputs:
+                email_input = email_inputs[0]
+            else:
+                email_input = page.locator("input:visible").nth(1)
+            email_input.click()
+            email_input.fill("")
+            page.keyboard.type(email, delay=50)
+            page.wait_for_timeout(500)
+
+            # Press Enter to confirm the email tag
             page.keyboard.press("Enter")
-            page.wait_for_timeout(800)
-
-            # ── Save changes (inside modal) ───────────────────────────────
-            print("[Steel] Clicking 'Save changes'...")
-            save_modal_btn = page.locator("button:has-text('Save changes')")
-            save_modal_btn.wait_for(state="visible", timeout=5000)
-            save_modal_btn.click()
-
-            # ── Wait for modal to close ───────────────────────────────────
-            print("[Steel] Waiting for modal to close...")
-            page.wait_for_selector(
-                "button:has-text('Save changes')",
-                state="hidden",
-                timeout=15000
-            )
             page.wait_for_timeout(1000)
 
-            # ── Check the checkbox for this email list ────────────────────
-            print(f"[Steel] Looking for checkbox row matching: {email}")
-            checkbox = page.locator(
-                f"tr:has-text('{email}') input[type='checkbox']"
+            # Wait for Save changes to become enabled
+            print("[Steel] Waiting for Save changes to become enabled...")
+            page.wait_for_function(
+                "() => !document.querySelector('button[debug-id=\"create-button\"]')?.disabled",
+                timeout=10000
             )
+
+            print("[Steel] Clicking Save changes...")
+            page.locator("button[debug-id='create-button']").click()
+
+            # Wait for modal to close
+            print("[Steel] Waiting for modal to close...")
+            page.wait_for_selector("button:has-text('Save changes')", state="hidden", timeout=15000)
+            page.wait_for_timeout(1500)
+
+            # Check checkbox for this email list
+            print(f"[Steel] Looking for checkbox row matching: Beta Testers")
+            checkbox = page.locator("tr:has-text('Beta Testers') input[type='checkbox']")
             checkbox.wait_for(state="visible", timeout=10000)
             checkbox.click()
             page.wait_for_timeout(1000)
 
-            # ── Save on main page ─────────────────────────────────────────
-            print("[Steel] Clicking main page 'Save'...")
-            main_save_btn = page.locator("button:has-text('Save')").first
-            main_save_btn.wait_for(state="visible", timeout=5000)
-            main_save_btn.click()
+            # Save on main page
+            print("[Steel] Clicking main page Save...")
+            page.locator("button:has-text('Save')").first.click()
 
             try:
-                page.wait_for_selector(
-                    "mat-snack-bar-container",
-                    state="visible",
-                    timeout=8000
-                )
+                page.wait_for_selector("mat-snack-bar-container", state="visible", timeout=8000)
                 print("[Steel] Save confirmed via snackbar.")
             except Exception:
                 print("[Steel] No snackbar detected, assuming save succeeded.")
