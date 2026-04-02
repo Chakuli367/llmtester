@@ -63,78 +63,107 @@ def add_tester(email: str) -> dict:
             if "play.google.com/console" not in current_url:
                 raise Exception(f"Unexpected redirect to: {current_url}")
 
-            # Click Create email list
-            print("[Steel] Waiting for 'Create email list' button...")
+            # JS-click the Create email list button to bypass overlay issues
+            print("[Steel] Clicking 'Create email list' via JavaScript...")
             page.wait_for_selector("button:has-text('Create email list')", state="visible", timeout=15000)
-            page.locator("button:has-text('Create email list')").first.click()
+            page.evaluate("""
+                () => {
+                    const btns = [...document.querySelectorAll('button')];
+                    const btn = btns.find(b => b.innerText.includes('Create email list'));
+                    if (btn) btn.click();
+                    else throw new Error('Create email list button not found');
+                }
+            """)
+            page.wait_for_timeout(2000)
 
-            # Wait for modal Save changes button to appear
-            print("[Steel] Waiting for modal...")
-            page.wait_for_selector("button:has-text('Save changes')", state="visible", timeout=15000)
-            page.wait_for_timeout(1500)
+            # Wait for modal
+            print("[Steel] Waiting for modal (mat-dialog-container)...")
+            page.wait_for_selector("mat-dialog-container", state="visible", timeout=15000)
+            print("[Steel] Modal opened!")
+            page.wait_for_timeout(1000)
 
-            # Debug — print all visible inputs in modal
-            inputs = page.locator("input:visible").all()
-            print(f"[Steel] Visible inputs in modal: {len(inputs)}")
-            for i, inp in enumerate(inputs):
-                try:
-                    t = inp.get_attribute("type")
-                    p2 = inp.get_attribute("placeholder")
-                    print(f"  Input {i}: type={t} placeholder={p2}")
-                except:
-                    pass
+            # Debug — what inputs are inside the modal?
+            modal_inputs = page.eval_on_selector_all(
+                "mat-dialog-container input",
+                "els => els.map(e => ({type: e.type, placeholder: e.placeholder, visible: e.offsetParent !== null}))"
+            )
+            print(f"[Steel] Inputs in modal: {modal_inputs}")
 
-            # Fill list name — type slowly to trigger Angular change detection
+            # Fill list name using JS directly on the Angular input
             list_name = "Beta Testers"
             print(f"[Steel] Filling list name: '{list_name}'")
-            name_input = page.locator("input:visible").first
-            name_input.click()
-            name_input.fill("")
-            page.keyboard.type(list_name, delay=50)
+            page.evaluate(f"""
+                () => {{
+                    const modal = document.querySelector('mat-dialog-container');
+                    const input = modal.querySelector('input[type="text"]');
+                    if (!input) throw new Error('List name input not found');
+                    input.focus();
+                    input.value = '{list_name}';
+                    input.dispatchEvent(new Event('input', {{bubbles: true}}));
+                    input.dispatchEvent(new Event('change', {{bubbles: true}}));
+                }}
+            """)
             page.wait_for_timeout(500)
 
-            # Fill email
+            # Fill email using JS
             print(f"[Steel] Filling email: {email}")
-            # Try to find email input — if not found fall back to second visible input
-            email_inputs = page.locator("input[type='email']:visible").all()
-            if email_inputs:
-                email_input = email_inputs[0]
-            else:
-                email_input = page.locator("input:visible").nth(1)
-            email_input.click()
-            email_input.fill("")
-            page.keyboard.type(email, delay=50)
+            page.evaluate(f"""
+                () => {{
+                    const modal = document.querySelector('mat-dialog-container');
+                    const input = modal.querySelector('input[type="email"]') 
+                                  || modal.querySelectorAll('input')[1];
+                    if (!input) throw new Error('Email input not found');
+                    input.focus();
+                    input.value = '{email}';
+                    input.dispatchEvent(new Event('input', {{bubbles: true}}));
+                    input.dispatchEvent(new Event('change', {{bubbles: true}}));
+                }}
+            """)
             page.wait_for_timeout(500)
 
-            # Press Enter to confirm the email tag
+            # Press Enter to confirm email tag
             page.keyboard.press("Enter")
             page.wait_for_timeout(1000)
 
-            # Wait for Save changes to become enabled
-            print("[Steel] Waiting for Save changes to become enabled...")
+            # Wait for Save changes to be enabled then JS-click it
+            print("[Steel] Waiting for Save changes button to enable...")
             page.wait_for_function(
-                "() => !document.querySelector('button[debug-id=\"create-button\"]')?.disabled",
+                "() => { const btn = document.querySelector('mat-dialog-container button[debug-id=\"create-button\"]'); return btn && !btn.disabled; }",
                 timeout=10000
             )
-
             print("[Steel] Clicking Save changes...")
-            page.locator("button[debug-id='create-button']").click()
+            page.evaluate("""
+                () => {
+                    const modal = document.querySelector('mat-dialog-container');
+                    const btn = modal.querySelector('button[debug-id="create-button"]')
+                                || [...modal.querySelectorAll('button')].find(b => b.innerText.includes('Save changes'));
+                    if (!btn) throw new Error('Save changes button not found');
+                    btn.click();
+                }
+            """)
 
             # Wait for modal to close
             print("[Steel] Waiting for modal to close...")
-            page.wait_for_selector("button:has-text('Save changes')", state="hidden", timeout=15000)
+            page.wait_for_selector("mat-dialog-container", state="hidden", timeout=15000)
             page.wait_for_timeout(1500)
 
-            # Check checkbox for this email list
+            # Check checkbox for the new list
             print(f"[Steel] Looking for checkbox row matching: Beta Testers")
             checkbox = page.locator("tr:has-text('Beta Testers') input[type='checkbox']")
             checkbox.wait_for(state="visible", timeout=10000)
-            checkbox.click()
+            checkbox.evaluate("el => el.click()")
             page.wait_for_timeout(1000)
 
-            # Save on main page
+            # Save main page
             print("[Steel] Clicking main page Save...")
-            page.locator("button:has-text('Save')").first.click()
+            page.evaluate("""
+                () => {
+                    const btns = [...document.querySelectorAll('button')];
+                    const btn = btns.find(b => b.innerText.trim() === 'Save' && !b.disabled);
+                    if (btn) btn.click();
+                    else throw new Error('Save button not found');
+                }
+            """)
 
             try:
                 page.wait_for_selector("mat-snack-bar-container", state="visible", timeout=8000)
