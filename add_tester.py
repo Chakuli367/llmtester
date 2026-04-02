@@ -104,19 +104,23 @@ def add_tester(email: str) -> dict:
             page.wait_for_selector("text='Create email list?'", state="visible", timeout=10000)
             print("[Steel] Clicking 'Create' in confirmation dialog...")
             page.locator("button:has-text('Create')").last.click()
-            page.wait_for_timeout(3000)  # Wait for both modals to close
 
-            # Log all visible checkbox row texts for debugging
-            rows = page.locator("tr input[type='checkbox']").all()
-            print(f"[Steel] Found {len(rows)} checkbox rows after modal closed")
+            # Wait for BOTH modals to fully close — poll until no dialog with create-button
+            print("[Steel] Waiting for modals to close...")
+            page.wait_for_function("""
+                () => !document.querySelector("button[debug-id='create-button']")
+            """, timeout=15000)
+            page.wait_for_timeout(2000)
+
+            # Log checkbox rows
             row_texts = page.locator("tr:has(input[type='checkbox'])").all_text_contents()
             print(f"[Steel] Row texts: {row_texts}")
 
-            # Find checkbox — try by list name first, then by email
+            # Find and click checkbox
             print("[Steel] Looking for checkbox...")
             checkbox = page.locator("tr:has-text('Beta Testers') input[type='checkbox']")
             if checkbox.count() == 0:
-                print("[Steel] 'Beta Testers' row not found, trying by email...")
+                print("[Steel] Trying by email...")
                 checkbox = page.locator(f"tr:has-text('{email}') input[type='checkbox']")
             checkbox.wait_for(state="visible", timeout=15000)
             checkbox.evaluate("el => el.click()")
