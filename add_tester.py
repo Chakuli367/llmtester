@@ -1,3 +1,4 @@
+
 import os
 import json
 from steel import Steel
@@ -52,35 +53,52 @@ def add_tester(email: str) -> dict:
             if "accounts.google.com" in page.url:
                 raise Exception("Session expired — re-run save_session.py locally")
 
-            # Click by debug-id
-            print("[Steel] Clicking 'Create email list'...")
-            page.wait_for_selector("button[debug-id='create-list-button']", state="visible", timeout=15000)
-            page.evaluate("document.querySelector(\"button[debug-id='create-list-button']\").click()")
-            page.wait_for_timeout(2000)
+            # Wait for button and click with force=True (bypasses overlay)
+            print("[Steel] Clicking 'Create email list' with force...")
+            btn = page.locator("button[debug-id='create-list-button']")
+            btn.wait_for(state="visible", timeout=15000)
+            btn.click(force=True)
+            page.wait_for_timeout(3000)
 
-            # Wait for modal
-            print("[Steel] Waiting for modal...")
-            page.wait_for_selector("mat-dialog-container", state="visible", timeout=15000)
-            print("[Steel] Modal opened!")
+            # Check if modal opened — also try alternate selectors
+            print("[Steel] Checking for modal...")
+            modal_html = page.evaluate("""
+                () => {
+                    const mat = document.querySelector('mat-dialog-container');
+                    const cdk = document.querySelector('cdk-overlay-container');
+                    const dialog = document.querySelector('[role="dialog"]');
+                    return {
+                        mat: mat ? mat.innerHTML.substring(0, 200) : null,
+                        cdk: cdk ? cdk.innerHTML.substring(0, 200) : null,
+                        dialog: dialog ? dialog.innerHTML.substring(0, 200) : null,
+                        bodyClass: document.body.className
+                    }
+                }
+            """)
+            print(f"[Steel] Modal check: {modal_html}")
+
+            # Try multiple selectors for modal
+            modal_selector = None
+            for selector in ["mat-dialog-container", "[role='dialog']", "cdk-overlay-pane", ".cdk-overlay-pane"]:
+                count = page.locator(selector).count()
+                print(f"[Steel] Selector '{selector}' count: {count}")
+                if count > 0:
+                    modal_selector = selector
+                    break
+
+            if not modal_selector:
+                raise Exception("Modal did not open — no dialog found on page")
+
+            print(f"[Steel] Modal found via: {modal_selector}")
+            page.wait_for_selector(modal_selector, state="visible", timeout=5000)
             page.wait_for_timeout(1000)
 
-            # Debug inputs inside modal
-            modal_inputs = page.evaluate("""
-                () => [...document.querySelectorAll('mat-dialog-container input')].map(e => ({
-                    type: e.type,
-                    placeholder: e.placeholder,
-                    visible: e.offsetParent !== null,
-                    name: e.name
-                }))
-            """)
-            print(f"[Steel] Modal inputs: {modal_inputs}")
-
-            # Fill list name via JS to trigger Angular
+            # Fill list name
             list_name = "Beta Testers"
             print(f"[Steel] Filling list name: '{list_name}'")
             page.evaluate(f"""
                 () => {{
-                    const modal = document.querySelector('mat-dialog-container');
+                    const modal = document.querySelector('{modal_selector}');
                     const input = [...modal.querySelectorAll('input')].find(i => i.offsetParent !== null && i.type !== 'radio' && i.type !== 'checkbox');
                     if (!input) throw new Error('No visible text input found in modal');
                     input.focus();
@@ -91,11 +109,11 @@ def add_tester(email: str) -> dict:
             """)
             page.wait_for_timeout(500)
 
-            # Fill email via JS
+            # Fill email
             print(f"[Steel] Filling email: {email}")
             page.evaluate(f"""
                 () => {{
-                    const modal = document.querySelector('mat-dialog-container');
+                    const modal = document.querySelector('{modal_selector}');
                     const inputs = [...modal.querySelectorAll('input')].filter(i => i.offsetParent !== null && i.type !== 'radio' && i.type !== 'checkbox');
                     const input = inputs.find(i => i.type === 'email') || inputs[1];
                     if (!input) throw new Error('No email input found in modal');
@@ -109,28 +127,28 @@ def add_tester(email: str) -> dict:
             page.keyboard.press("Enter")
             page.wait_for_timeout(1000)
 
-            # Wait for Save changes button to become enabled
+            # Wait for Save changes to enable
             print("[Steel] Waiting for Save changes to enable...")
             page.wait_for_function(
-                "() => { const btn = document.querySelector('mat-dialog-container button[debug-id=\"create-button\"]'); return btn && !btn.disabled; }",
+                f"() => {{ const btn = document.querySelector('{modal_selector} button[debug-id=\"create-button\"]'); return btn && !btn.disabled; }}",
                 timeout=10000
             )
             print("[Steel] Clicking Save changes...")
-            page.evaluate("document.querySelector('mat-dialog-container button[debug-id=\"create-button\"]').click()")
+            page.evaluate(f"document.querySelector('{modal_selector} button[debug-id=\"create-button\"]').click()")
 
             # Wait for modal to close
             print("[Steel] Waiting for modal to close...")
-            page.wait_for_selector("mat-dialog-container", state="hidden", timeout=15000)
+            page.wait_for_selector(modal_selector, state="hidden", timeout=15000)
             page.wait_for_timeout(1500)
 
-            # Check checkbox for Beta Testers row
+            # Check checkbox
             print("[Steel] Checking checkbox for 'Beta Testers'...")
             checkbox = page.locator("tr:has-text('Beta Testers') input[type='checkbox']")
             checkbox.wait_for(state="visible", timeout=10000)
             checkbox.evaluate("el => el.click()")
             page.wait_for_timeout(1000)
 
-            # Click main Save button
+            # Save main page
             print("[Steel] Clicking main Save...")
             page.evaluate("document.querySelector(\"button[debug-id='main-button']\").click()")
 
