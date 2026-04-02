@@ -59,12 +59,12 @@ def add_tester(email: str) -> dict:
             btn.click(force=True)
             page.wait_for_timeout(3000)
 
-            # Wait for modal
+            # Wait for the create modal specifically (has create-button inside)
             print("[Steel] Waiting for modal...")
-            page.wait_for_selector("[role='dialog']", state="visible", timeout=15000)
+            page.wait_for_selector("button[debug-id='create-button']", state="visible", timeout=15000)
             page.wait_for_timeout(1000)
 
-            # Fill list name — pass value as JS argument to avoid interpolation issues
+            # Fill list name
             list_name = "Beta Testers"
             print(f"[Steel] Filling list name: '{list_name}'")
             page.evaluate("""
@@ -81,7 +81,7 @@ def add_tester(email: str) -> dict:
             """, list_name)
             page.wait_for_timeout(500)
 
-            # Fill email — pass as argument
+            # Fill email
             print(f"[Steel] Filling email: {email}")
             page.evaluate("""
                 (value) => {
@@ -103,21 +103,19 @@ def add_tester(email: str) -> dict:
             print("[Steel] Waiting for 'Save changes' to enable...")
             page.wait_for_function("""
                 () => {
-                    const btn = document.querySelector("[role='dialog'] button[debug-id='create-button']");
+                    const btn = document.querySelector("button[debug-id='create-button']");
                     return btn && !btn.disabled;
                 }
             """, timeout=10000)
 
             print("[Steel] Clicking 'Save changes'...")
             page.evaluate("""
-                () => {
-                    document.querySelector("[role='dialog'] button[debug-id='create-button']").click();
-                }
+                () => { document.querySelector("button[debug-id='create-button']").click(); }
             """)
 
-            # Wait for modal to close
+            # Wait for modal to close by waiting for create-button to disappear
             print("[Steel] Waiting for modal to close...")
-            page.wait_for_selector("[role='dialog']", state="hidden", timeout=15000)
+            page.wait_for_selector("button[debug-id='create-button']", state="hidden", timeout=15000)
             page.wait_for_timeout(1500)
 
             # Check checkbox for the new list
