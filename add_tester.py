@@ -14,6 +14,9 @@ def add_tester(email: str) -> dict:
     if not STEEL_API_KEY:
         raise ValueError("STEEL_API_KEY env var not set")
 
+    if "@" not in email or "." not in email.split("@")[-1]:
+        raise ValueError(f"Invalid email address: {email}")
+
     session_data = json.loads(SESSION_JSON)
     cleaned_cookies = [
         {k: v for k, v in cookie.items() if k != "partitionKey"}
@@ -27,12 +30,12 @@ def add_tester(email: str) -> dict:
             local_storage = {}
 
     client = Steel(steel_api_key=STEEL_API_KEY)
+    print("[Steel] Creating session...")
     session = client.sessions.create(session_context={
         "cookies": cleaned_cookies,
         "localStorage": local_storage
     })
     print(f"[Steel] Session created: {session.id}")
-    print(f"[Steel] 👉 WATCH LIVE: https://app.steel.dev/sessions/{session.id}")
 
     try:
         with sync_playwright() as p:
@@ -44,36 +47,106 @@ def add_tester(email: str) -> dict:
 
             print("[Steel] Navigating...")
             page.goto(TESTERS_URL, wait_until="networkidle")
-            page.wait_for_timeout(4000)
+            page.wait_for_timeout(3000)
 
-            print(f"[Steel] URL: {page.url}")
-            print(f"[Steel] Title: {page.title()}")
+            if "accounts.google.com" in page.url:
+                raise Exception("Session expired — re-run save_session.py locally")
 
-            # Dump ALL buttons on page with full detail
-            all_buttons = page.evaluate("""
-                () => [...document.querySelectorAll('button')].map((b, i) => ({
-                    index: i,
-                    text: b.innerText.trim().replace(/\\n/g, ' ').substring(0, 80),
-                    disabled: b.disabled,
-                    visible: b.offsetParent !== null,
-                    debugId: b.getAttribute('debug-id'),
-                    classes: b.className.substring(0, 60)
+            # Click by debug-id
+            print("[Steel] Clicking 'Create email list'...")
+            page.wait_for_selector("button[debug-id='create-list-button']", state="visible", timeout=15000)
+            page.evaluate("document.querySelector(\"button[debug-id='create-list-button']\").click()")
+            page.wait_for_timeout(2000)
+
+            # Wait for modal
+            print("[Steel] Waiting for modal...")
+            page.wait_for_selector("mat-dialog-container", state="visible", timeout=15000)
+            print("[Steel] Modal opened!")
+            page.wait_for_timeout(1000)
+
+            # Debug inputs inside modal
+            modal_inputs = page.evaluate("""
+                () => [...document.querySelectorAll('mat-dialog-container input')].map(e => ({
+                    type: e.type,
+                    placeholder: e.placeholder,
+                    visible: e.offsetParent !== null,
+                    name: e.name
                 }))
             """)
-            print(f"[Steel] Total buttons: {len(all_buttons)}")
-            for b in all_buttons:
-                print(f"  [{b['index']}] text='{b['text']}' visible={b['visible']} disabled={b['disabled']} debug-id={b['debugId']}")
+            print(f"[Steel] Modal inputs: {modal_inputs}")
 
-            # Also dump page URL and any tab info
-            tabs_info = page.evaluate("""
-                () => [...document.querySelectorAll('[role="tab"]')].map(t => ({
-                    text: t.innerText.trim(),
-                    selected: t.getAttribute('aria-selected')
-                }))
+            # Fill list name via JS to trigger Angular
+            list_name = "Beta Testers"
+            print(f"[Steel] Filling list name: '{list_name}'")
+            page.evaluate(f"""
+                () => {{
+                    const modal = document.querySelector('mat-dialog-container');
+                    const input = [...modal.querySelectorAll('input')].find(i => i.offsetParent !== null && i.type !== 'radio' && i.type !== 'checkbox');
+                    if (!input) throw new Error('No visible text input found in modal');
+                    input.focus();
+                    input.value = '{list_name}';
+                    input.dispatchEvent(new InputEvent('input', {{bubbles: true, inputType: 'insertText', data: '{list_name}'}}));
+                    input.dispatchEvent(new Event('change', {{bubbles: true}}));
+                }}
             """)
-            print(f"[Steel] Tabs: {tabs_info}")
+            page.wait_for_timeout(500)
 
-            raise Exception("DEBUG STOP — check button list above")
+            # Fill email via JS
+            print(f"[Steel] Filling email: {email}")
+            page.evaluate(f"""
+                () => {{
+                    const modal = document.querySelector('mat-dialog-container');
+                    const inputs = [...modal.querySelectorAll('input')].filter(i => i.offsetParent !== null && i.type !== 'radio' && i.type !== 'checkbox');
+                    const input = inputs.find(i => i.type === 'email') || inputs[1];
+                    if (!input) throw new Error('No email input found in modal');
+                    input.focus();
+                    input.value = '{email}';
+                    input.dispatchEvent(new InputEvent('input', {{bubbles: true, inputType: 'insertText', data: '{email}'}}));
+                    input.dispatchEvent(new Event('change', {{bubbles: true}}));
+                }}
+            """)
+            page.wait_for_timeout(500)
+            page.keyboard.press("Enter")
+            page.wait_for_timeout(1000)
+
+            # Wait for Save changes button to become enabled
+            print("[Steel] Waiting for Save changes to enable...")
+            page.wait_for_function(
+                "() => { const btn = document.querySelector('mat-dialog-container button[debug-id=\"create-button\"]'); return btn && !btn.disabled; }",
+                timeout=10000
+            )
+            print("[Steel] Clicking Save changes...")
+            page.evaluate("document.querySelector('mat-dialog-container button[debug-id=\"create-button\"]').click()")
+
+            # Wait for modal to close
+            print("[Steel] Waiting for modal to close...")
+            page.wait_for_selector("mat-dialog-container", state="hidden", timeout=15000)
+            page.wait_for_timeout(1500)
+
+            # Check checkbox for Beta Testers row
+            print("[Steel] Checking checkbox for 'Beta Testers'...")
+            checkbox = page.locator("tr:has-text('Beta Testers') input[type='checkbox']")
+            checkbox.wait_for(state="visible", timeout=10000)
+            checkbox.evaluate("el => el.click()")
+            page.wait_for_timeout(1000)
+
+            # Click main Save button
+            print("[Steel] Clicking main Save...")
+            page.evaluate("document.querySelector(\"button[debug-id='main-button']\").click()")
+
+            try:
+                page.wait_for_selector("mat-snack-bar-container", state="visible", timeout=8000)
+                print("[Steel] Save confirmed via snackbar!")
+            except Exception:
+                print("[Steel] No snackbar, assuming save succeeded.")
+
+            page.wait_for_timeout(2000)
+            print("[Steel] All done!")
+            browser.close()
+
+    except Exception as e:
+        print(f"[Steel] ERROR: {e}")
+        raise
 
     finally:
         client.sessions.release(session.id)
