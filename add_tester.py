@@ -59,64 +59,46 @@ def add_tester(email: str) -> dict:
             btn.click(force=True)
             page.wait_for_timeout(3000)
 
-            # Wait for the create modal specifically (has create-button inside)
+            # Wait for modal — scoped to the dialog that has a close button
             print("[Steel] Waiting for modal...")
-            page.wait_for_selector("button[debug-id='create-button']", state="visible", timeout=15000)
+            page.wait_for_selector("[role='dialog'] button.close, [role='dialog'] [debug-id='cancel-button'], [role='dialog'] input", state="visible", timeout=15000)
             page.wait_for_timeout(1000)
 
-            # Fill list name
+            # Fill list name using Playwright native fill (triggers Angular properly)
             list_name = "Beta Testers"
             print(f"[Steel] Filling list name: '{list_name}'")
-            page.evaluate("""
-                (value) => {
-                    const modal = document.querySelector("[role='dialog']");
-                    const inputs = [...modal.querySelectorAll('input')].filter(i => i.offsetParent !== null && i.type !== 'radio' && i.type !== 'checkbox');
-                    const input = inputs[0];
-                    if (!input) throw new Error('No visible text input found in modal');
-                    input.focus();
-                    input.value = value;
-                    input.dispatchEvent(new InputEvent('input', {bubbles: true, inputType: 'insertText', data: value}));
-                    input.dispatchEvent(new Event('change', {bubbles: true}));
-                }
-            """, list_name)
+            name_input = page.locator("[role='dialog'] input").first
+            name_input.click()
+            name_input.fill(list_name)
             page.wait_for_timeout(500)
 
             # Fill email
             print(f"[Steel] Filling email: {email}")
-            page.evaluate("""
-                (value) => {
-                    const modal = document.querySelector("[role='dialog']");
-                    const inputs = [...modal.querySelectorAll('input')].filter(i => i.offsetParent !== null && i.type !== 'radio' && i.type !== 'checkbox');
-                    const input = inputs.find(i => i.type === 'email') || inputs[1];
-                    if (!input) throw new Error('No email input found in modal');
-                    input.focus();
-                    input.value = value;
-                    input.dispatchEvent(new InputEvent('input', {bubbles: true, inputType: 'insertText', data: value}));
-                    input.dispatchEvent(new Event('change', {bubbles: true}));
-                }
-            """, email)
+            # Try email type first, fall back to second input
+            email_inputs = page.locator("[role='dialog'] input[type='email']")
+            if email_inputs.count() > 0:
+                email_input = email_inputs.first
+            else:
+                email_input = page.locator("[role='dialog'] input").nth(1)
+            email_input.click()
+            email_input.fill(email)
             page.wait_for_timeout(500)
             page.keyboard.press("Enter")
             page.wait_for_timeout(1000)
 
-            # Wait for Save changes button to become enabled
-            print("[Steel] Waiting for 'Save changes' to enable...")
-            page.wait_for_function("""
+            # Log button state for debugging
+            btn_disabled = page.evaluate("""
                 () => {
                     const btn = document.querySelector("button[debug-id='create-button']");
-                    return btn && !btn.disabled;
+                    return btn ? btn.disabled : 'not found';
                 }
-            """, timeout=10000)
-
-            print("[Steel] Clicking 'Save changes'...")
-            page.evaluate("""
-                () => { document.querySelector("button[debug-id='create-button']").click(); }
             """)
+            print(f"[Steel] create-button disabled: {btn_disabled}")
 
-            # Wait for modal to close by waiting for create-button to disappear
-            print("[Steel] Waiting for modal to close...")
-            page.wait_for_selector("button[debug-id='create-button']", state="hidden", timeout=15000)
-            page.wait_for_timeout(1500)
+            # Click Save changes with force regardless
+            print("[Steel] Clicking 'Save changes'...")
+            page.locator("button[debug-id='create-button']").click(force=True)
+            page.wait_for_timeout(3000)
 
             # Check checkbox for the new list
             print("[Steel] Checking checkbox for 'Beta Testers'...")
