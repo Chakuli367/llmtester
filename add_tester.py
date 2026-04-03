@@ -37,7 +37,8 @@ def add_tester(email: str) -> dict:
     })
     print(f"[Steel] Session created: {session.id}")
 
-    list_name = "alexa Testers"
+    # Fix 1: Correct the list name typo (was "alexa Testers")
+    list_name = "alpha Testers"
 
     try:
         with sync_playwright() as p:
@@ -54,18 +55,16 @@ def add_tester(email: str) -> dict:
             if "accounts.google.com" in page.url:
                 raise Exception("Session expired — re-run save_session.py locally")
 
-            # Wait for testers table to load
+            # Fix 2: Wait for ess-table instead of tr (page uses div[role='row'], not <tr>)
             print("[Steel] Waiting for testers table...")
-            page.wait_for_selector("tr:has(input[type='checkbox'])", state="visible", timeout=15000)
-            page.wait_for_timeout(1000)
+            page.wait_for_selector("ess-table", state="visible", timeout=20000)
+            page.wait_for_timeout(2000)
 
-            # Click the arrow (→) next to "alexa Testers" to open the list
+            # Fix 3: Click the Details/arrow button using aria-label
             print(f"[Steel] Opening '{list_name}' list...")
-            arrow = page.locator(f"tr:has-text('{list_name}') a")
-            if arrow.count() == 0:
-                arrow = page.locator(f"tr:has-text('{list_name}') button").last
-            arrow.wait_for(state="visible", timeout=10000)
-            arrow.click()
+            edit_btn = page.locator(f"button[aria-label='Edit email list {list_name}']").first
+            edit_btn.wait_for(state="visible", timeout=10000)
+            edit_btn.click()
             page.wait_for_timeout(3000)
 
             # Wait for the list edit page/modal to load
@@ -108,33 +107,29 @@ def add_tester(email: str) -> dict:
             page.wait_for_load_state("networkidle")
             page.wait_for_timeout(3000)
 
-            # Wait for testers table to reload
+            # Fix 2 (again): Wait for ess-table to reload
             print("[Steel] Waiting for testers table to reload...")
-            page.wait_for_selector("tr:has(input[type='checkbox'])", state="visible", timeout=15000)
+            page.wait_for_selector("ess-table", state="visible", timeout=20000)
             page.wait_for_timeout(2000)
 
-            # Log checkbox rows
-            row_texts = page.locator("tr:has(input[type='checkbox'])").all_text_contents()
+            # Log row texts for debugging
+            row_texts = page.locator("div[role='row']").all_text_contents()
             print(f"[Steel] Row texts: {row_texts}")
 
-            # Find and click checkbox by list name
+            # Fix 4: Use mat-checkbox with aria-label instead of input[type='checkbox']
             print("[Steel] Looking for checkbox...")
-            checkbox = page.locator(f"tr:has-text('{list_name}') input[type='checkbox']")
+            checkbox = page.locator(f"mat-checkbox[aria-label='{list_name}']")
             checkbox.wait_for(state="visible", timeout=15000)
             checkbox.click()
             page.wait_for_timeout(1000)
 
-            # Click final Save button (bottom right sticky bar)
+            # Fix 5: Use debug-id="main-button" for the final save (bottom-bar-base)
             print("[Steel] Clicking final Save...")
             page.wait_for_timeout(2000)
 
-            final_save = page.locator(
-                "div.footer button:has-text('Save'), "
-                "[class*='footer'] button:has-text('Save'), "
-                "button[debug-id='save-button']"
-            )
+            final_save = page.locator("button[debug-id='main-button']")
             if final_save.count() == 0:
-                print("[Steel] Footer selector not found, falling back to last Save button...")
+                print("[Steel] main-button not found, falling back to last Save button...")
                 final_save = page.locator("button:has-text('Save')").last
 
             final_save.scroll_into_view_if_needed()
