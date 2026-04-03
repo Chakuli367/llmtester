@@ -122,25 +122,30 @@ def add_tester(email: str) -> dict:
             print(f"[Steel] Row texts: {row_texts}")
 
             # Find and click checkbox by list name
+            # Find and click checkbox by list name
             print("[Steel] Looking for checkbox...")
             checkbox = page.locator(f"tr:has-text('{list_name}') input[type='checkbox']")
             checkbox.wait_for(state="visible", timeout=15000)
             checkbox.click()
-            page.wait_for_timeout(1000)
+            page.wait_for_timeout(2000)  # Wait longer for button to enable
 
-            # Click final Save button (bottom right of testers page)
-            print("[Steel] Clicking final Save...")
-            page.wait_for_timeout(1000)
-            final_save = page.locator("button:has-text('Save')").last
-            final_save.scroll_into_view_if_needed()
+            # Click final Save button - wait for it to be ENABLED first
+            print("[Steel] Waiting for Save button to become enabled...")
+            final_save = page.locator("button[debug-id='main-button']")
             final_save.wait_for(state="visible", timeout=10000)
-            final_save.click(force=True)
 
-            try:
-                page.wait_for_selector("mat-snack-bar-container", state="visible", timeout=8000)
-                print("[Steel] Final save confirmed via snackbar!")
-            except Exception:
-                print("[Steel] No snackbar, assuming final save succeeded.")
+            # Wait until the disabled attribute is removed
+            for _ in range(20):  # up to 10 seconds
+                is_disabled = final_save.get_attribute("disabled")
+                if is_disabled is None:
+                    break
+                page.wait_for_timeout(500)
+            else:
+                raise Exception("Save button never became enabled")
+
+            print("[Steel] Clicking final Save...")
+            final_save.scroll_into_view_if_needed()
+            final_save.click(force=True)
 
             page.wait_for_timeout(2000)
             print("[Steel] All done!")
