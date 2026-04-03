@@ -37,9 +37,6 @@ def add_tester(email: str) -> dict:
     })
     print(f"[Steel] Session created: {session.id}")
 
-    # Fix 1: Correct the list name typo (was "alexa Testers")
-    list_name = "alpha Testers"
-
     try:
         with sync_playwright() as p:
             browser = p.chromium.connect_over_cdp(
@@ -55,83 +52,86 @@ def add_tester(email: str) -> dict:
             if "accounts.google.com" in page.url:
                 raise Exception("Session expired — re-run save_session.py locally")
 
-            # Fix 2: Wait for ess-table instead of tr (page uses div[role='row'], not <tr>)
-            print("[Steel] Waiting for testers table...")
-            page.wait_for_selector("ess-table", state="visible", timeout=20000)
-            page.wait_for_timeout(2000)
-
-            # Fix 3: Click the Details/arrow button using aria-label
-            print(f"[Steel] Opening '{list_name}' list...")
-            edit_btn = page.locator(f"button[aria-label='Edit email list {list_name}']").first
-            edit_btn.wait_for(state="visible", timeout=10000)
-            edit_btn.click()
+            # Click 'Create email list'
+            print("[Steel] Clicking 'Create email list'...")
+            btn = page.locator("button[debug-id='create-list-button']")
+            btn.wait_for(state="visible", timeout=15000)
+            btn.click(force=True)
             page.wait_for_timeout(3000)
 
-            # Wait for the list edit page/modal to load
-            print("[Steel] Waiting for email input...")
-            page.wait_for_selector(
-                "input[type='email'], input[placeholder*='email'], input[placeholder*='Email']",
-                state="visible", timeout=15000
-            )
+            # Wait for modal
+            print("[Steel] Waiting for modal...")
+            page.wait_for_selector("[role='dialog'] input", state="visible", timeout=15000)
             page.wait_for_timeout(1000)
 
+            # Fill list name
+            list_name = "alexa Testers"
+            print(f"[Steel] Filling list name: '{list_name}'")
+            name_input = page.locator("[role='dialog'] input").first
+            name_input.click()
+            name_input.fill(list_name)
+            page.wait_for_timeout(500)
+
             # Fill email
-            print(f"[Steel] Adding email: {email}")
-            email_input = page.locator(
-                "input[type='email'], input[placeholder*='email'], input[placeholder*='Email']"
-            ).first
+            print(f"[Steel] Filling email: {email}")
+            email_inputs = page.locator("[role='dialog'] input[type='email']")
+            if email_inputs.count() > 0:
+                email_input = email_inputs.first
+            else:
+                email_input = page.locator("[role='dialog'] input").nth(1)
             email_input.click()
             email_input.fill(email)
             page.wait_for_timeout(500)
             page.keyboard.press("Enter")
             page.wait_for_timeout(1000)
 
-            # Check for red error (duplicate/invalid email)
-            error_count = page.locator(".error, [class*='error'], mat-error").count()
-            if error_count > 0:
-                raise Exception(f"Email rejected by Play Console (duplicate or invalid): {email}")
+            # Log button state using locator instead of evaluate (avoids Trusted Types)
+            create_btn = page.locator("button[debug-id='create-button']")
+            is_disabled = create_btn.get_attribute("disabled")
+            print(f"[Steel] create-button disabled: {is_disabled}")
 
-            # Click Save changes inside the list editor
-            print("[Steel] Saving list...")
-            save_list_btn = page.locator(
-                "button[debug-id='save-button'], button:has-text('Save changes')"
-            ).first
-            save_list_btn.scroll_into_view_if_needed()
-            save_list_btn.wait_for(state="visible", timeout=10000)
-            save_list_btn.click(force=True)
+            # Click Save changes
+            print("[Steel] Clicking 'Save changes'...")
+            create_btn.click(force=True)
             page.wait_for_timeout(2000)
 
-            # Go back to testers page
-            print("[Steel] Going back to testers page...")
-            page.go_back()
-            page.wait_for_load_state("networkidle")
-            page.wait_for_timeout(3000)
+            # Handle confirmation dialog "Create email list?"
+            print("[Steel] Waiting for confirmation dialog...")
+            page.wait_for_selector("text='Create email list?'", state="visible", timeout=10000)
+            print("[Steel] Clicking 'Create' in confirmation dialog...")
+            page.locator("button:has-text('Create')").last.click()
 
-            # Fix 2 (again): Wait for ess-table to reload
-            print("[Steel] Waiting for testers table to reload...")
-            page.wait_for_selector("ess-table", state="visible", timeout=20000)
+            # Wait for modal to close — poll using native locator (avoids Trusted Types CSP issue)
+            print("[Steel] Waiting for modals to close...")
+            for _ in range(30):  # 15 seconds max
+                count = page.locator("button[debug-id='create-button']").count()
+                if count == 0:
+                    break
+                page.wait_for_timeout(500)
+            else:
+                raise Exception("Modal did not close in time")
             page.wait_for_timeout(2000)
 
-            # Log row texts for debugging
-            row_texts = page.locator("div[role='row']").all_text_contents()
+            # Wait for testers table to reload
+            print("[Steel] Waiting for testers table to load...")
+            page.wait_for_selector("tr:has(input[type='checkbox'])", state="visible", timeout=15000)
+            page.wait_for_timeout(2000)
+
+            # Log checkbox rows
+            row_texts = page.locator("tr:has(input[type='checkbox'])").all_text_contents()
             print(f"[Steel] Row texts: {row_texts}")
 
-            # Fix 4: Use mat-checkbox with aria-label instead of input[type='checkbox']
+            # Find and click checkbox by list name
             print("[Steel] Looking for checkbox...")
-            checkbox = page.locator(f"mat-checkbox[aria-label='{list_name}']")
+            checkbox = page.locator(f"tr:has-text('{list_name}') input[type='checkbox']")
             checkbox.wait_for(state="visible", timeout=15000)
             checkbox.click()
             page.wait_for_timeout(1000)
 
-            # Fix 5: Use debug-id="main-button" for the final save (bottom-bar-base)
+            # Click final Save button (bottom right of testers page)
             print("[Steel] Clicking final Save...")
-            page.wait_for_timeout(2000)
-
-            final_save = page.locator("button[debug-id='main-button']")
-            if final_save.count() == 0:
-                print("[Steel] main-button not found, falling back to last Save button...")
-                final_save = page.locator("button:has-text('Save')").last
-
+            page.wait_for_timeout(1000)
+            final_save = page.locator("button:has-text('Save')").last
             final_save.scroll_into_view_if_needed()
             final_save.wait_for(state="visible", timeout=10000)
             final_save.click(force=True)
