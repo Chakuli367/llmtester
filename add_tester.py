@@ -56,22 +56,19 @@ def add_tester(email: str) -> dict:
 
             # Wait for testers table to load
             print("[Steel] Waiting for testers table...")
-            page.wait_for_selector(
-                "tr:has(input[type='checkbox']), mat-checkbox, [role='checkbox']",
-                state="visible", timeout=15000
-            )
+            page.wait_for_selector("tr:has(input[type='checkbox'])", state="visible", timeout=15000)
             page.wait_for_timeout(1000)
 
-            # Click the arrow (→) — grab last button/link in the alexa Testers row
+            # Click the arrow (→) next to "alexa Testers" to open the list
             print(f"[Steel] Opening '{list_name}' list...")
-            row = page.locator(f"tr:has-text('{list_name}')")
-            row.wait_for(state="visible", timeout=10000)
-            arrow = row.locator("button, a").last
+            arrow = page.locator(f"tr:has-text('{list_name}') a")
+            if arrow.count() == 0:
+                arrow = page.locator(f"tr:has-text('{list_name}') button").last
             arrow.wait_for(state="visible", timeout=10000)
             arrow.click()
             page.wait_for_timeout(3000)
 
-            # Wait for the list edit page to load
+            # Wait for the list edit page/modal to load
             print("[Steel] Waiting for email input...")
             page.wait_for_selector(
                 "input[type='email'], input[placeholder*='email'], input[placeholder*='Email']",
@@ -113,27 +110,19 @@ def add_tester(email: str) -> dict:
 
             # Wait for testers table to reload
             print("[Steel] Waiting for testers table to reload...")
-            page.wait_for_selector(
-                "tr:has(input[type='checkbox']), mat-checkbox, [role='checkbox']",
-                state="visible", timeout=15000
-            )
+            page.wait_for_selector("tr:has(input[type='checkbox'])", state="visible", timeout=15000)
             page.wait_for_timeout(2000)
 
             # Log checkbox rows
             row_texts = page.locator("tr:has(input[type='checkbox'])").all_text_contents()
             print(f"[Steel] Row texts: {row_texts}")
 
-            # Only check the checkbox if not already checked
-            print("[Steel] Checking if checkbox is already ticked...")
+            # Find and click checkbox by list name
+            print("[Steel] Looking for checkbox...")
             checkbox = page.locator(f"tr:has-text('{list_name}') input[type='checkbox']")
             checkbox.wait_for(state="visible", timeout=15000)
-            is_checked = checkbox.is_checked()
-            print(f"[Steel] Checkbox already checked: {is_checked}")
-            if not is_checked:
-                checkbox.click()
-                page.wait_for_timeout(1000)
-            else:
-                print("[Steel] Checkbox already ticked, skipping click.")
+            checkbox.click()
+            page.wait_for_timeout(1000)
 
             # Click final Save button (bottom right sticky bar)
             print("[Steel] Clicking final Save...")
