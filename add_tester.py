@@ -65,7 +65,7 @@ def add_tester(email: str) -> dict:
             page.wait_for_timeout(1000)
 
             # Fill list name
-            list_name = "Beta Testers"
+            list_name = "alpha Testers"
             print(f"[Steel] Filling list name: '{list_name}'")
             name_input = page.locator("[role='dialog'] input").first
             name_input.click()
