@@ -62,14 +62,24 @@ def add_tester(email: str) -> dict:
             )
             page.wait_for_timeout(1000)
 
-            # Click the arrow (→) — grab last button/link in the alexa Testers row
-            # Click the Details/arrow button in the alexa Testers row
+            # Click the Details button in the alexa Testers row
             print(f"[Steel] Opening '{list_name}' list...")
             row = page.locator(f"ess-table .ess-container [role='row']:has-text('{list_name}')")
             row.wait_for(state="visible", timeout=10000)
+
+            # Scroll into view and hover to reveal the hidden Details button
+            row.scroll_into_view_if_needed()
+            row.hover()
+            page.wait_for_timeout(500)
+
             details_btn = row.locator("button.text-button:has-text('Details')")
-            details_btn.wait_for(state="visible", timeout=10000)
-            details_btn.click()
+            try:
+                details_btn.wait_for(state="visible", timeout=5000)
+                details_btn.click()
+            except Exception:
+                print("[Steel] Falling back to force click on Details button...")
+                details_btn.click(force=True)
+
             page.wait_for_timeout(3000)
 
             # Wait for the list edit page to load
