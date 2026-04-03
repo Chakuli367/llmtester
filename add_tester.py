@@ -128,10 +128,20 @@ def add_tester(email: str) -> dict:
             checkbox.click()
             page.wait_for_timeout(1000)
 
-            # Click final Save button (bottom right of testers page)
+            # Click final Save button (bottom right sticky bar)
             print("[Steel] Clicking final Save...")
-            page.wait_for_timeout(1000)
-            final_save = page.locator("button:has-text('Save')").last
+            page.wait_for_timeout(2000)
+
+            # Try specific selectors first, fall back to .last
+            final_save = page.locator(
+                "div.footer button:has-text('Save'), "
+                "[class*='footer'] button:has-text('Save'), "
+                "button[debug-id='save-button']"
+            )
+            if final_save.count() == 0:
+                print("[Steel] Footer selector not found, falling back to last Save button...")
+                final_save = page.locator("button:has-text('Save')").last
+
             final_save.scroll_into_view_if_needed()
             final_save.wait_for(state="visible", timeout=10000)
             final_save.click(force=True)
