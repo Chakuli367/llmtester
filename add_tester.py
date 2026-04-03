@@ -126,17 +126,17 @@ def add_tester(email: str) -> dict:
             checkbox.click()
             page.wait_for_timeout(1000)
 
-            # Save main page
-            print("[Steel] Clicking main Save...")
-            main_save_btn = page.locator("button:has-text('Save')").first
-            main_save_btn.wait_for(state="visible", timeout=5000)
-            main_save_btn.click(force=True)
+            # Click final Save button (bottom right of testers page)
+            print("[Steel] Clicking final Save...")
+            final_save = page.locator("button:has-text('Save')").last
+            final_save.wait_for(state="visible", timeout=10000)
+            final_save.click(force=True)
 
             try:
                 page.wait_for_selector("mat-snack-bar-container", state="visible", timeout=8000)
-                print("[Steel] Save confirmed via snackbar!")
+                print("[Steel] Final save confirmed via snackbar!")
             except Exception:
-                print("[Steel] No snackbar, assuming save succeeded.")
+                print("[Steel] No snackbar, assuming final save succeeded.")
 
             page.wait_for_timeout(2000)
             print("[Steel] All done!")
