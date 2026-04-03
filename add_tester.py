@@ -65,7 +65,7 @@ def add_tester(email: str) -> dict:
             page.wait_for_timeout(1000)
 
             # Fill list name
-            list_name = "alpha Testers"
+            list_name = "alexa Testers"
             print(f"[Steel] Filling list name: '{list_name}'")
             name_input = page.locator("[role='dialog'] input").first
             name_input.click()
@@ -118,7 +118,7 @@ def add_tester(email: str) -> dict:
 
             # Find and click checkbox
             print("[Steel] Looking for checkbox...")
-            checkbox = page.locator("tr:has-text('Beta Testers') input[type='checkbox']")
+            checkbox = page.locator("tr:has-text('alexa Testers') input[type='checkbox']")
             if checkbox.count() == 0:
                 print("[Steel] Trying by email...")
                 checkbox = page.locator(f"tr:has-text('{email}') input[type='checkbox']")
