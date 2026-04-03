@@ -123,11 +123,7 @@ def add_tester(email: str) -> dict:
 
             # Find and click checkbox by list name
             # Find and click checkbox by list name
-            print("[Steel] Looking for checkbox...")
-            checkbox = page.locator(f"tr:has-text('{list_name}') input[type='checkbox']")
-            checkbox.wait_for(state="visible", timeout=15000)
-            checkbox.click()
-            page.wait_for_timeout(2000)  # Wait longer for button to enable
+
 
             # Click final Save button - wait for it to be ENABLED first
             print("[Steel] Waiting for Save button to become enabled...")
