@@ -63,12 +63,13 @@ def add_tester(email: str) -> dict:
             page.wait_for_timeout(1000)
 
             # Click the arrow (→) — grab last button/link in the alexa Testers row
+            # Click the Details/arrow button in the alexa Testers row
             print(f"[Steel] Opening '{list_name}' list...")
-            row = page.locator(f"tr:has-text('{list_name}')")
+            row = page.locator(f"ess-table .ess-container [role='row']:has-text('{list_name}')")
             row.wait_for(state="visible", timeout=10000)
-            arrow = row.locator("button, a").last
-            arrow.wait_for(state="visible", timeout=10000)
-            arrow.click()
+            details_btn = row.locator("button.text-button:has-text('Details')")
+            details_btn.wait_for(state="visible", timeout=10000)
+            details_btn.click()
             page.wait_for_timeout(3000)
 
             # Wait for the list edit page to load
