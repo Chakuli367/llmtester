@@ -1,11 +1,18 @@
 import os
 import json
+import secrets
+import string
 from steel import Steel
 from playwright.sync_api import sync_playwright
 
 TESTERS_URL = "https://play.google.com/console/u/0/developers/8552461033442694717/app/4975749607400132591/tracks/4699824931279130112?tab=testers"
 SESSION_JSON = os.environ.get("PLAY_CONSOLE_SESSION")
 STEEL_API_KEY = os.environ.get("STEEL_API_KEY")
+
+
+def get_random_list_name(length=6):
+    chars = string.ascii_letters + string.digits
+    return "List_" + ''.join(secrets.choice(chars) for _ in range(length))
 
 
 def add_tester(email: str) -> dict:
@@ -64,8 +71,8 @@ def add_tester(email: str) -> dict:
             page.wait_for_selector("[role='dialog'] input", state="visible", timeout=15000)
             page.wait_for_timeout(1000)
 
-            # Fill list name
-            list_name = "alexa Testers"
+            # Fill list name (UPDATED)
+            list_name = get_random_list_name()
             print(f"[Steel] Filling list name: '{list_name}'")
             name_input = page.locator("[role='dialog'] input").first
             name_input.click()
@@ -85,7 +92,7 @@ def add_tester(email: str) -> dict:
             page.keyboard.press("Enter")
             page.wait_for_timeout(1000)
 
-            # Log button state using locator instead of evaluate (avoids Trusted Types)
+            # Log button state
             create_btn = page.locator("button[debug-id='create-button']")
             is_disabled = create_btn.get_attribute("disabled")
             print(f"[Steel] create-button disabled: {is_disabled}")
@@ -95,15 +102,15 @@ def add_tester(email: str) -> dict:
             create_btn.click(force=True)
             page.wait_for_timeout(2000)
 
-            # Handle confirmation dialog "Create email list?"
+            # Handle confirmation dialog
             print("[Steel] Waiting for confirmation dialog...")
             page.wait_for_selector("text='Create email list?'", state="visible", timeout=10000)
             print("[Steel] Clicking 'Create' in confirmation dialog...")
             page.locator("button:has-text('Create')").last.click()
 
-            # Wait for modal to close — poll using native locator (avoids Trusted Types CSP issue)
+            # Wait for modal to close
             print("[Steel] Waiting for modals to close...")
-            for _ in range(30):  # 15 seconds max
+            for _ in range(30):
                 count = page.locator("button[debug-id='create-button']").count()
                 if count == 0:
                     break
@@ -112,17 +119,12 @@ def add_tester(email: str) -> dict:
                 raise Exception("Modal did not close in time")
             page.wait_for_timeout(2000)
 
-            # Wait for testers table to reload
-           
-
-
-            # Click final Save button - wait for it to be ENABLED first
+            # Final Save
             print("[Steel] Waiting for Save button to become enabled...")
             final_save = page.locator("button[debug-id='main-button']")
             final_save.wait_for(state="visible", timeout=10000)
 
-            # Wait until the disabled attribute is removed
-            for _ in range(20):  # up to 10 seconds
+            for _ in range(20):
                 is_disabled = final_save.get_attribute("disabled")
                 if is_disabled is None:
                     break
