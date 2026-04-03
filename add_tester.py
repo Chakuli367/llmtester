@@ -112,23 +112,27 @@ def add_tester(email: str) -> dict:
                 raise Exception("Modal did not close in time")
             page.wait_for_timeout(2000)
 
+            # Wait for testers table to reload
+            print("[Steel] Waiting for testers table to load...")
+            page.wait_for_selector("tr:has(input[type='checkbox'])", state="visible", timeout=15000)
+            page.wait_for_timeout(2000)
+
             # Log checkbox rows
             row_texts = page.locator("tr:has(input[type='checkbox'])").all_text_contents()
             print(f"[Steel] Row texts: {row_texts}")
 
-            # Find and click checkbox
+            # Find and click checkbox by list name
             print("[Steel] Looking for checkbox...")
-            checkbox = page.locator("tr:has-text('alexa Testers') input[type='checkbox']")
-            if checkbox.count() == 0:
-                print("[Steel] Trying by email...")
-                checkbox = page.locator(f"tr:has-text('{email}') input[type='checkbox']")
+            checkbox = page.locator(f"tr:has-text('{list_name}') input[type='checkbox']")
             checkbox.wait_for(state="visible", timeout=15000)
             checkbox.click()
             page.wait_for_timeout(1000)
 
             # Click final Save button (bottom right of testers page)
             print("[Steel] Clicking final Save...")
+            page.wait_for_timeout(1000)
             final_save = page.locator("button:has-text('Save')").last
+            final_save.scroll_into_view_if_needed()
             final_save.wait_for(state="visible", timeout=10000)
             final_save.click(force=True)
 
