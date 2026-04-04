@@ -2,6 +2,7 @@ import os
 import json
 import secrets
 import string
+import time
 from steel import Steel
 from playwright.sync_api import sync_playwright
 
@@ -9,13 +10,21 @@ TESTERS_URL = "https://play.google.com/console/u/0/developers/855246103344269471
 SESSION_JSON = os.environ.get("PLAY_CONSOLE_SESSION")
 STEEL_API_KEY = os.environ.get("STEEL_API_KEY")
 
+MAX_ATTEMPTS = 8          # total tries before giving up
+BASE_DELAY_S = 2          # seconds — doubles each attempt, capped at 60s
+MAX_DELAY_S = 60
+
 
 def get_random_list_name(length=6):
     chars = string.ascii_letters + string.digits
     return "List_" + ''.join(secrets.choice(chars) for _ in range(length))
 
 
-def add_tester(email: str) -> dict:
+def _attempt_add_tester(email: str) -> dict:
+    """
+    Single attempt to add a tester via Steel + Playwright.
+    Raises on any failure so the caller can retry.
+    """
     if not SESSION_JSON:
         raise ValueError("PLAY_CONSOLE_SESSION env var not set")
     if not STEEL_API_KEY:
@@ -71,7 +80,7 @@ def add_tester(email: str) -> dict:
             page.wait_for_selector("[role='dialog'] input", state="visible", timeout=15000)
             page.wait_for_timeout(1000)
 
-            # Fill list name (UPDATED)
+            # Fill list name
             list_name = get_random_list_name()
             print(f"[Steel] Filling list name: '{list_name}'")
             name_input = page.locator("[role='dialog'] input").first
@@ -140,12 +149,52 @@ def add_tester(email: str) -> dict:
             print("[Steel] All done!")
             browser.close()
 
-    except Exception as e:
-        print(f"[Steel] ERROR: {e}")
-        raise
-
-    finally:
+    except Exception:
+        # Always release the session, even on failure
         client.sessions.release(session.id)
-        print("[Steel] Session released")
+        print("[Steel] Session released (after error)")
+        raise  # re-raise so the retry wrapper can catch it
 
+    client.sessions.release(session.id)
+    print("[Steel] Session released")
     return {"success": True, "email": email}
+
+
+def add_tester(email: str) -> dict:
+    """
+    Calls _attempt_add_tester with exponential backoff retry.
+    Retries on ANY exception except hard validation errors.
+    Max attempts: MAX_ATTEMPTS. Never raises — returns error dict on total failure.
+    """
+    # Hard-fail immediately for bad input — no point retrying
+    if "@" not in email or "." not in email.split("@")[-1]:
+        raise ValueError(f"Invalid email address: {email}")
+    if not SESSION_JSON:
+        raise ValueError("PLAY_CONSOLE_SESSION env var not set")
+    if not STEEL_API_KEY:
+        raise ValueError("STEEL_API_KEY env var not set")
+
+    last_error = None
+
+    for attempt in range(1, MAX_ATTEMPTS + 1):
+        print(f"\n[Retry] Attempt {attempt}/{MAX_ATTEMPTS} for {email}")
+        try:
+            result = _attempt_add_tester(email)
+            print(f"[Retry] ✅ Success on attempt {attempt}")
+            return result
+
+        except Exception as e:
+            last_error = e
+            print(f"[Retry] ❌ Attempt {attempt} failed: {e}")
+
+            if attempt < MAX_ATTEMPTS:
+                delay = min(BASE_DELAY_S * (2 ** (attempt - 1)), MAX_DELAY_S)
+                print(f"[Retry] Waiting {delay}s before next attempt...")
+                time.sleep(delay)
+
+    # All attempts exhausted
+    print(f"[Retry] 💀 All {MAX_ATTEMPTS} attempts failed for {email}. Last error: {last_error}")
+    raise Exception(
+        f"add_tester failed after {MAX_ATTEMPTS} attempts for {email}. "
+        f"Last error: {last_error}"
+    )
