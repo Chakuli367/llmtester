@@ -5,13 +5,9 @@ from add_tester import add_tester
 
 app = Flask(__name__)
 
-# ✅ Enable CORS properly
 CORS(app, resources={
     r"/add-tester": {
-        "origins": [
-            "http://localhost:3039",
-            "https://your-production-domain.com"
-        ],
+        "origins": "*",
         "methods": ["POST", "OPTIONS"],
         "allow_headers": ["Content-Type", "X-Webhook-Secret"]
     }
@@ -19,21 +15,17 @@ CORS(app, resources={
 
 WEBHOOK_SECRET = os.environ.get("WEBHOOK_SECRET")
 
-
 @app.route("/", methods=["GET"])
 def health():
     return jsonify({"status": "ok"}), 200
 
-
-# ✅ Explicit preflight handler (critical)
 @app.route("/add-tester", methods=["OPTIONS"])
 def add_tester_options():
     response = jsonify({"ok": True})
-    response.headers.add("Access-Control-Allow-Origin", "http://localhost:3039")
+    response.headers.add("Access-Control-Allow-Origin", "*")
     response.headers.add("Access-Control-Allow-Headers", "Content-Type, X-Webhook-Secret")
     response.headers.add("Access-Control-Allow-Methods", "POST, OPTIONS")
     return response, 200
-
 
 @app.route("/add-tester", methods=["POST"])
 def add_tester_route():
@@ -43,7 +35,6 @@ def add_tester_route():
 
     data = request.get_json()
     email = data.get("email") if data else None
-
     if not email:
         return jsonify({"error": "No email provided"}), 400
 
@@ -53,7 +44,6 @@ def add_tester_route():
     except Exception as e:
         print(f"[Error] {e}")
         return jsonify({"error": str(e)}), 500
-
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
