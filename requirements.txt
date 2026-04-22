@@ -4,3 +4,6 @@ gunicorn
 steel-sdk
 requests
 playwright==1.44.0
+google-auth
+google-auth-oauthlib
+google-api-python-client
