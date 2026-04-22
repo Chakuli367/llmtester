@@ -4,8 +4,8 @@ import time
 from google.oauth2 import service_account
 from googleapiclient.discovery import build
 
-PACKAGE_NAME = "app.connect.mobile"  # ← Replace with your actual package name
-TRACK_NAME = "Alpha"        # ← Replace with your track: internal, alpha, beta
+PACKAGE_NAME = "app.connect.mobile"
+TRACK_NAME = "Alpha"
 
 SCOPES = ["https://www.googleapis.com/auth/androidpublisher"]
 
@@ -47,12 +47,11 @@ def _attempt_add_tester(email: str) -> dict:
             editId=edit_id,
             track=TRACK_NAME
         ).execute()
-        tester_emails = response.get("googleAccounts", [])
+        tester_emails = response.get("testers", {}).get("googleAccounts", [])
     except Exception:
         tester_emails = []
 
     if email in tester_emails:
-        # Commit and exit early
         service.edits().commit(
             packageName=PACKAGE_NAME,
             editId=edit_id
@@ -61,12 +60,16 @@ def _attempt_add_tester(email: str) -> dict:
 
     tester_emails.append(email)
 
-    # Update testers
+    # Update testers — correct body format
     service.edits().testers().update(
         packageName=PACKAGE_NAME,
         editId=edit_id,
         track=TRACK_NAME,
-        body={"googleAccounts": tester_emails}
+        body={
+            "testers": {
+                "googleAccounts": tester_emails
+            }
+        }
     ).execute()
 
     # Commit the edit
