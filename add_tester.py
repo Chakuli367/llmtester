@@ -1,13 +1,11 @@
 import os
 import json
 import time
-import secrets
-import string
 from google.oauth2 import service_account
 from googleapiclient.discovery import build
 
 PACKAGE_NAME = "app.connect.mobile"  # ← Replace with your actual package name
-TRACK_NAME = "Alpha"  # ← Replace with your track: internal, alpha, beta
+TRACK_NAME = "Alpha"        # ← Replace with your track: internal, alpha, beta
 
 SCOPES = ["https://www.googleapis.com/auth/androidpublisher"]
 
@@ -28,36 +26,53 @@ def get_credentials():
     return credentials
 
 
+def _create_edit(service) -> str:
+    edit = service.edits().insert(
+        packageName=PACKAGE_NAME,
+        body={}
+    ).execute()
+    return edit["id"]
+
+
 def _attempt_add_tester(email: str) -> dict:
     credentials = get_credentials()
     service = build("androidpublisher", "v3", credentials=credentials)
 
-    testers = service.testers()
+    edit_id = _create_edit(service)
 
     # Get current testers
-    response = testers.list(
-        packageName=PACKAGE_NAME,
-        track=TRACK_NAME
-    ).execute()
-
-    current_emails = response.get("testers", {}).get("googleGroups", [])
-    tester_emails = response.get("testers", {}).get("googleAccounts", [])
+    try:
+        response = service.edits().testers().get(
+            packageName=PACKAGE_NAME,
+            editId=edit_id,
+            track=TRACK_NAME
+        ).execute()
+        tester_emails = response.get("googleAccounts", [])
+    except Exception:
+        tester_emails = []
 
     if email in tester_emails:
+        # Commit and exit early
+        service.edits().commit(
+            packageName=PACKAGE_NAME,
+            editId=edit_id
+        ).execute()
         return {"success": True, "email": email, "note": "Already a tester"}
 
     tester_emails.append(email)
 
     # Update testers
-    testers.update(
+    service.edits().testers().update(
         packageName=PACKAGE_NAME,
+        editId=edit_id,
         track=TRACK_NAME,
-        body={
-            "testers": {
-                "googleAccounts": tester_emails,
-                "googleGroups": current_emails
-            }
-        }
+        body={"googleAccounts": tester_emails}
+    ).execute()
+
+    # Commit the edit
+    service.edits().commit(
+        packageName=PACKAGE_NAME,
+        editId=edit_id
     ).execute()
 
     return {"success": True, "email": email}
