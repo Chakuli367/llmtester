@@ -47,7 +47,7 @@ def _attempt_add_tester(email: str) -> dict:
             editId=edit_id,
             track=TRACK_NAME
         ).execute()
-        tester_emails = response.get("testers", {}).get("googleAccounts", [])
+        tester_emails = response.get("googleAccounts", [])
     except Exception:
         tester_emails = []
 
@@ -60,15 +60,13 @@ def _attempt_add_tester(email: str) -> dict:
 
     tester_emails.append(email)
 
-    # Update testers — correct body format
+    # Update testers
     service.edits().testers().update(
         packageName=PACKAGE_NAME,
         editId=edit_id,
         track=TRACK_NAME,
         body={
-            "testers": {
-                "googleAccounts": tester_emails
-            }
+            "googleAccounts": tester_emails
         }
     ).execute()
 
